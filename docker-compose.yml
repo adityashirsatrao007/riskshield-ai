@@ -16,7 +16,6 @@ services:
       - MLFLOW_TRACKING_URI=http://mlflow:5000
     volumes:
       - backend_data:/app/data
-      - ml_models:/app/ml_models
     depends_on:
       - redis
     networks:
@@ -187,7 +186,6 @@ services:
       - MODEL_PATH=/app/ml_models/fraud_detector_v2.joblib
       - PYTHONPATH=/app/backend
     volumes:
-      - ml_models:/app/ml_models
       - backend_data:/app/data
     depends_on:
       - redis

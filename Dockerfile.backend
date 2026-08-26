@@ -7,8 +7,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt ./requirements.txt
-COPY requirements-dev.txt ./requirements-dev.txt
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+RUN pip install --no-cache-dir --prefix=/install --timeout 600 \
+    $(grep -v xgboost requirements.txt | tr '\n' ' ')
+
+RUN pip install --no-cache-dir --prefix=/install --timeout 600 \
+    xgboost==2.1.0 --no-deps && \
+    pip install --no-cache-dir --prefix=/install --timeout 600 \
+    threadpoolctl
 
 COPY backend/ ./backend/
 COPY ml/models/ ./ml/models/
