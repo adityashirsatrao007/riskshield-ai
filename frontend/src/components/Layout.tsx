@@ -74,7 +74,7 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <aside className="w-64 flex-shrink-0 border-r border-slate-800 bg-slate-900">
+      <aside className="relative w-64 flex-shrink-0 border-r border-slate-800 bg-slate-900">
         <div className="flex h-16 items-center gap-3 border-b border-slate-800 px-5">
           <div className="flex size-9 items-center justify-center rounded-lg bg-brand-600">
             <Shield className="size-5 text-white" />

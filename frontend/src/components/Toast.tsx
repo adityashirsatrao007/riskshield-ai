@@ -1,4 +1,4 @@
-import { useState, useCallback, createContext, useContext } from "react";
+import { useRef, useState, useCallback, createContext, useContext } from "react";
 import { X, CheckCircle, AlertTriangle, Info } from "lucide-react";
 
 type ToastType = "success" | "error" | "info";
@@ -19,10 +19,10 @@ export function useToast() {
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
-  let nextId = 0;
+  const nextIdRef = useRef(0);
 
   const toast = useCallback((message: string, type: ToastType = "info") => {
-    const id = ++nextId;
+    const id = ++nextIdRef.current;
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -46,7 +46,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className="flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 text-sm text-slate-200 shadow-lg animate-in slide-in-from-right"
+            className="flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 text-sm text-slate-200 shadow-lg transition-all duration-300 ease-in-out translate-x-0 opacity-100"
           >
             {icons[t.type]}
             <span className="flex-1">{t.message}</span>

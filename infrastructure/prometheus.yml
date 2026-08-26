@@ -10,9 +10,3 @@ scrape_configs:
           - backend:8000
         labels:
           service: riskshield-api
-
-  - job_name: node-exporter
-    static_configs:
-      - targets:
-          - node-exporter:9100
-    scrape_interval: 30s
