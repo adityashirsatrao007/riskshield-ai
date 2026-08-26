@@ -1,9 +1,20 @@
 import os
+import sys
 import hmac
+import secrets
 from fastapi import HTTPException, Security
 from fastapi.security import APIKeyHeader
 
-API_KEY = os.environ.get("RISKSHIELD_API_KEY", "riskshield-test-key-2026")
+_api_key = os.environ.get("RISKSHIELD_API_KEY")
+if not _api_key:
+    print(
+        "FATAL: RISKSHIELD_API_KEY environment variable is not set. "
+        "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(32))\"",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+API_KEY = _api_key
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 

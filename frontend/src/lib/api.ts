@@ -12,15 +12,39 @@ import type {
 
 const api = axios.create({
   baseURL: "/api/v1",
+  timeout: 15000,
 });
 
 api.interceptors.request.use((config) => {
-  const key = localStorage.getItem("riskshield_api_key") || "riskshield-test-key-2026";
-  if (config.headers) {
+  const key = localStorage.getItem("riskshield_api_key");
+  if (key && config.headers) {
     config.headers["X-API-Key"] = key;
   }
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem("riskshield_api_key");
+    }
+    const message =
+      error.response?.data?.detail ||
+      error.response?.data?.message ||
+      error.message ||
+      "An unexpected error occurred";
+    return Promise.reject(new Error(message));
+  }
+);
+
+export const setApiKey = (key: string) => {
+  localStorage.setItem("riskshield_api_key", key);
+};
+
+export const clearApiKey = () => {
+  localStorage.removeItem("riskshield_api_key");
+};
 
 export const fetchDashboard = async (): Promise<DashboardStats> => {
   const { data } = await api.get<{ success: boolean; data: DashboardStats }>(

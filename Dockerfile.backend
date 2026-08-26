@@ -11,11 +11,20 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ .
 COPY ml/models/ /app/ml_models/
 
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data && \
+    addgroup --system --gid 1001 appgroup && \
+    adduser --system --uid 1001 --ingroup appgroup appuser && \
+    chown -R appuser:appgroup /app
 
-ENV MODEL_PATH=/app/ml_models/fraud_detector.joblib
-ENV DATABASE_URL=sqlite+aiosqlite:///./data/riskshield.db
+USER appuser
+
+ENV MODEL_PATH=/app/ml_models/fraud_detector.joblib \
+    DATABASE_URL=sqlite+aiosqlite:///./data/riskshield.db \
+    PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
