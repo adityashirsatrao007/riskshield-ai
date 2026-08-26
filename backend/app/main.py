@@ -116,6 +116,13 @@ async def rate_limit_middleware(request: Request, call_next):
         )
 
     _rate_limit_store[key].append(now)
+
+    if len(_rate_limit_store) > 10000:
+        cutoff = now - RATE_LIMIT_WINDOW
+        stale = [k for k, v in _rate_limit_store.items() if not v or v[-1] < cutoff]
+        for k in stale:
+            del _rate_limit_store[k]
+
     return await call_next(request)
 
 

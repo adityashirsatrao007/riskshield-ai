@@ -23,17 +23,17 @@ import { format } from "date-fns";
 const COLORS = ["#10b981", "#f59e0b", "#f97316", "#ef4444"];
 
 export default function Analytics() {
-  const { data: timeline } = useQuery({
+  const { data: timeline, isLoading: timelineLoading } = useQuery({
     queryKey: ["timeline-analytics"],
     queryFn: () => fetchTimeline(30),
   });
 
-  const { data: distribution } = useQuery({
+  const { data: distribution, isLoading: distLoading } = useQuery({
     queryKey: ["risk-dist-analytics"],
     queryFn: fetchRiskDistribution,
   });
 
-  const { data: fpAnalysis } = useQuery({
+  const { data: fpAnalysis, isLoading: fpLoading } = useQuery({
     queryKey: ["fp-analysis"],
     queryFn: fetchFalsePositiveAnalysis,
   });
@@ -46,6 +46,8 @@ export default function Analytics() {
       }))
     : [];
 
+  const isLoading = timelineLoading || distLoading || fpLoading;
+
   return (
     <div className="space-y-8">
       <div>
@@ -54,6 +56,12 @@ export default function Analytics() {
           Deep dive into fraud patterns and model performance
         </p>
       </div>
+
+      {isLoading && (
+        <div className="flex items-center justify-center py-12">
+          <div className="text-sm text-slate-400">Loading analytics data...</div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
@@ -145,7 +153,9 @@ export default function Analytics() {
         <h3 className="mb-4 text-sm font-semibold text-slate-200">
           False Positive Cost Analysis
         </h3>
-        {fpAnalysis && (
+        {fpLoading ? (
+          <div className="py-8 text-center text-sm text-slate-500">Loading...</div>
+        ) : fpAnalysis ? (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
             <div className="text-center">
               <p className="text-3xl font-bold text-white">
@@ -180,7 +190,7 @@ export default function Analytics() {
               <p className="mt-1 text-sm text-slate-400">Total Flagged</p>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
 
       <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6">

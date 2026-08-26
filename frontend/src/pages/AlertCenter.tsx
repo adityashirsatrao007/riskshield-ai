@@ -2,11 +2,13 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchAlerts, updateAlertStatus, fetchAlertStats } from "../lib/api";
 import { RiskBadge } from "../components/RiskBadge";
+import { useToast } from "../components/Toast";
 import { format } from "date-fns";
 import { Bell, CheckCircle, XCircle, Eye } from "lucide-react";
 
 export default function AlertCenter() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState("");
   const [riskFilter, setRiskFilter] = useState("");
 
@@ -31,9 +33,10 @@ export default function AlertCenter() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
       queryClient.invalidateQueries({ queryKey: ["alert-stats"] });
+      toast("Alert updated", "success");
     },
     onError: (error: Error) => {
-      console.error("Failed to update alert:", error.message);
+      toast(`Failed to update alert: ${error.message}`, "error");
     },
   });
 

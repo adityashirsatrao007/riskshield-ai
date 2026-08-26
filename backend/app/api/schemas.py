@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field, conlist, field_validator
 from datetime import datetime
 
 
-VALID_CARD_TYPES = {"credit", "debit", "upi", "netbanking", "wallet", " prepaid"}
+VALID_CARD_TYPES = {"credit", "debit", "upi", "netbanking", "wallet", "prepaid"}
 VALID_CARD_NETWORKS = {"visa", "mastercard", "amex", "rupay", "discover", "diners", "other"}
 VALID_RISK_LEVELS = {"low", "medium", "high", "critical"}
 

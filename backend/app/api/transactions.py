@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func, desc
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -43,7 +44,15 @@ async def create_transaction(
         is_flagged=result["is_flagged"],
     )
     db.add(db_txn)
-    await db.flush()
+
+    try:
+        await db.flush()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=f"Transaction with id '{txn.transaction_id}' already exists",
+        )
 
     audit = AuditTrail(
         transaction_id=db_txn.id,
@@ -90,7 +99,9 @@ async def batch_score(
     _: str = Depends(verify_api_key),
 ):
     results = []
-    for txn in batch.transactions:
+    errors = []
+
+    for i, txn in enumerate(batch.transactions):
         ts = datetime.fromisoformat(txn.timestamp) if txn.timestamp else datetime.now(timezone.utc)
         txn_dict = txn.model_dump()
         txn_dict["hour_of_day"] = ts.hour
@@ -113,7 +124,17 @@ async def batch_score(
             is_flagged=result["is_flagged"],
         )
         db.add(db_txn)
-        await db.flush()
+
+        try:
+            await db.flush()
+        except IntegrityError:
+            await db.rollback()
+            errors.append({
+                "index": i,
+                "transaction_id": txn.transaction_id,
+                "error": "duplicate transaction_id",
+            })
+            continue
 
         if result["is_flagged"]:
             alert = Alert(
@@ -133,7 +154,14 @@ async def batch_score(
         })
 
     await db.commit()
-    return {"success": True, "data": {"scored": len(results), "results": results}}
+    return {
+        "success": True,
+        "data": {
+            "scored": len(results),
+            "errors": errors,
+            "results": results,
+        },
+    }
 
 
 @router.get("")
