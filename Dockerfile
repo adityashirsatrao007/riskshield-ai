@@ -2,7 +2,11 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /build
 
-RUN apt-get update && apt-get install -y --no-install-recommends gcc && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends gcc curl && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir --prefix=/install --timeout 600 \
@@ -10,20 +14,18 @@ RUN pip install --no-cache-dir --prefix=/install --timeout 600 \
 RUN pip install --no-cache-dir --prefix=/install --timeout 600 \
     xgboost==2.1.0 --no-deps
 
+COPY frontend/package.json frontend/package-lock.json* ./frontend/
+RUN cd frontend && npm install
+
 COPY backend/ ./backend/
 COPY ml/models/ ./ml/models/
 COPY infrastructure/ ./infrastructure/
+COPY frontend/ ./frontend/
 
+RUN cd frontend && npm run build
 RUN python -m compileall -q backend/ infrastructure/
 
-FROM node:20-alpine AS frontend
-WORKDIR /app
-COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm install
-COPY frontend/ .
-RUN npm run build
-
-FROM python:3.12-slim AS runtime
+FROM python:3.12-slim
 
 COPY --from=builder /install /usr/local
 WORKDIR /app
@@ -31,7 +33,7 @@ WORKDIR /app
 COPY --from=builder /build/backend/ ./backend/
 COPY --from=builder /build/ml/models/ ./ml_models/
 COPY --from=builder /build/infrastructure/ ./infrastructure/
-COPY --from=frontend /app/dist ./static/
+COPY --from=builder /build/frontend/dist ./static/
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
