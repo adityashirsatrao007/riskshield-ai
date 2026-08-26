@@ -1,0 +1,17 @@
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.git
+.gitignore
+.env
+*.db
+*.md
+test_endpoints.py
+.vscode
+.idea
+frontend/node_modules
+frontend/dist
+ml/data
+ml/models/*.joblib
+ml/models/*.json

@@ -1,0 +1,35 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./data/riskshield.db
+      - MODEL_PATH=/app/ml_models/fraud_detector.joblib
+      - DEBUG=false
+      - RISKSHIELD_API_KEY=riskshield-test-key-2026
+      - CORS_ORIGINS=http://localhost:3000
+    volumes:
+      - backend_data:/app/data
+      - ml_models:/app/ml_models
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  ml_models:
+  backend_data:

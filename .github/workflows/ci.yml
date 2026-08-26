@@ -1,0 +1,71 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ML dependencies
+        run: |
+          cd ml
+          pip install -r requirements.txt
+
+      - name: Generate synthetic data
+        run: |
+          cd ml
+          python scripts/generate_data.py
+
+      - name: Train model
+        run: |
+          cd ml
+          python scripts/train.py
+
+      - name: Validate model metrics
+        run: |
+          cd ml
+          python -c "
+          import json
+          with open('models/metrics.json') as f:
+              m = json.load(f)
+          assert m['auc_roc'] >= 0.80, f'AUC too low: {m[\"auc_roc\"]}'
+          assert m['f1_score'] >= 0.50, f'F1 too low: {m[\"f1_score\"]}'
+          print(f'PASS: AUC={m[\"auc_roc\"]}, F1={m[\"f1_score\"]}')
+          "
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install frontend dependencies
+        run: npm install
+        working-directory: frontend
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: frontend
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker build -f Dockerfile.backend -t riskshield-backend .
+
+      - name: Build frontend image
+        run: docker build -f Dockerfile.frontend -t riskshield-frontend .
