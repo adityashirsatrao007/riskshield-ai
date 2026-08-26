@@ -1,0 +1,9 @@
+[
+  {
+    "timestamp": "2026-08-26T04:48:03.234775+00:00",
+    "prediction_metrics": {},
+    "drift_detection": null,
+    "alerts": [],
+    "status": "healthy"
+  }
+]

@@ -4,16 +4,31 @@ import time
 import uuid
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from app.core.config import settings
 from app.core.database import init_db
 from app.services import risk_engine
+from app.services.monitoring import (
+    PredictionLogger, DriftDetector, MetricsCollector, AlertManager,
+)
 from app.api.transactions import router as txn_router
 from app.api.alerts import router as alert_router
 from app.api.analytics import router as analytics_router
+
+
+prediction_logger = PredictionLogger()
+drift_detector = DriftDetector()
+metrics_collector = MetricsCollector(prediction_logger, drift_detector)
+alert_manager = AlertManager(drift_detector)
+
+logger = logging.getLogger("riskshield")
+
+_rate_limit_store: dict[str, list[float]] = {}
+RATE_LIMIT_WINDOW = 60.0
 
 
 def setup_logging():
@@ -34,10 +49,6 @@ def setup_logging():
 
 
 setup_logging()
-logger = logging.getLogger("riskshield")
-
-_rate_limit_store: dict[str, list[float]] = {}
-RATE_LIMIT_WINDOW = 60.0
 
 
 @asynccontextmanager
@@ -47,13 +58,16 @@ async def lifespan(app: FastAPI):
         risk_engine.load_model(model_path)
         logger.info("Model loaded from %s", model_path)
     else:
-        logger.warning("Model not found at %s — run ml/scripts/train.py first", model_path)
+        logger.warning("Model not found at %s", model_path)
+
     await init_db()
     logger.info("Database initialized")
+
     yield
+
     from app.core.database import engine
     await engine.dispose()
-    logger.info("Database connections closed")
+    logger.info("Database connections closed, shutdown complete")
 
 
 app = FastAPI(
@@ -61,8 +75,8 @@ app = FastAPI(
     description="Payment fraud detection and chargeback prevention for merchants",
     version="1.0.0",
     lifespan=lifespan,
-    docs_url="/docs" if settings.DEBUG else None,
-    redoc_url="/redoc" if settings.DEBUG else None,
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 
@@ -81,7 +95,7 @@ async def add_request_id_and_timing(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
-    if request.url.path != "/health":
+    if request.url.path not in ("/health", "/metrics"):
         logger.info(
             "%s %s %s %s %sms",
             request_id,
@@ -96,12 +110,12 @@ async def add_request_id_and_timing(request: Request, call_next):
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    if request.url.path == "/health":
+    if request.url.path in ("/health", "/metrics"):
         return await call_next(request)
 
     client_ip = request.client.host if request.client else "unknown"
     now = time.time()
-    key = f"{client_ip}:{request.url.path}"
+    key = f"{client_ip}"
 
     if key not in _rate_limit_store:
         _rate_limit_store[key] = []
@@ -150,7 +164,7 @@ async def health():
     from sqlalchemy import text
 
     db_ok = False
-    model_ok = risk_engine._model is not None
+    model_ok = risk_engine.is_loaded()
     try:
         async with async_session() as session:
             await session.execute(text("SELECT 1"))
@@ -167,3 +181,68 @@ async def health():
             "model": "loaded" if model_ok else "missing",
         },
     }
+
+
+@app.get("/metrics")
+async def metrics():
+    return JSONResponse(
+        content=generate_latest().decode("utf-8"),
+        media_type=CONTENT_TYPE_LATEST,
+    )
+
+
+@app.get(f"{settings.API_PREFIX}/model/info")
+async def model_info():
+    from app.api.schemas import ModelInfoResponse
+    info = metrics_collector.get_model_info()
+    return ModelInfoResponse(
+        model_loaded=info["model_loaded"],
+        model_version=info["model_version"],
+        features=info["features"],
+        threshold=info["threshold"],
+        model_type=info.get("model_type", "unknown"),
+    )
+
+
+@app.get(f"{settings.API_PREFIX}/predictions/log")
+async def prediction_log(n: int = 100):
+    from app.api.schemas import PredictionLog
+    logs = prediction_logger.get_recent(n)
+    validated = []
+    for entry in logs:
+        try:
+            validated.append(PredictionLog(**entry).model_dump())
+        except Exception:
+            validated.append(entry)
+    return {"success": True, "data": validated, "count": len(validated)}
+
+
+@app.get(f"{settings.API_PREFIX}/monitoring/stats")
+async def monitoring_stats():
+    return {"success": True, "data": metrics_collector.get_prometheus_metrics()}
+
+
+@app.get(f"{settings.API_PREFIX}/monitoring/alerts")
+async def monitoring_alerts():
+    return {"success": True, "data": alert_manager.get_recent_alerts()}
+
+
+@app.get(f"{settings.API_PREFIX}/merchants")
+async def list_merchants():
+    from app.core.multi_tenant import MerchantManager
+    return {"success": True, "data": MerchantManager.list_merchants()}
+
+
+@app.post(f"{settings.API_PREFIX}/merchants")
+async def create_merchant(request: Request):
+    from app.api.schemas import MerchantCreate, MerchantResponse
+    from app.core.multi_tenant import MerchantManager
+
+    body = await request.json()
+    merchant = MerchantCreate(**body)
+    created = MerchantManager.create_merchant(
+        name=merchant.name,
+        rate_limit=merchant.rate_limit,
+        status=merchant.status,
+    )
+    return {"success": True, "data": created}

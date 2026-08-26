@@ -8,9 +8,46 @@ from app.core.database import get_db
 from app.core.auth import verify_api_key
 from app.models.transaction import Transaction, Alert, AuditTrail
 from app.services.risk_engine import score_transaction
+from app.services.pci import mask_sensitive_fields, mask_card_number, validate_card_format
 from app.api.schemas import TransactionCreate, BatchTransaction
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
+
+
+def _get_prediction_logger():
+    from app.main import prediction_logger
+    return prediction_logger
+
+
+def _run_scoring(txn: TransactionCreate, ts: datetime, merchant_id: str) -> dict:
+    txn_dict = txn.model_dump()
+    txn_dict["hour_of_day"] = ts.hour
+    txn_dict["day_of_week"] = ts.weekday()
+    txn_dict["timestamp"] = ts.isoformat()
+
+    if txn.card_number:
+        if validate_card_format(txn.card_number):
+            txn_dict["card_masked"] = mask_card_number(txn.card_number)
+        else:
+            txn_dict["card_masked"] = txn.card_number
+
+    result = score_transaction(txn_dict)
+
+    try:
+        logger = _get_prediction_logger()
+        logger.log(
+            transaction_id=txn.transaction_id,
+            merchant_id=merchant_id,
+            risk_score=result["risk_score"],
+            risk_level=result["risk_level"],
+            is_flagged=result["is_flagged"],
+            processing_time_ms=result["processing_time_ms"],
+            features_used=result.get("features_used", []),
+        )
+    except Exception:
+        pass
+
+    return result
 
 
 @router.post("")
@@ -20,15 +57,10 @@ async def create_transaction(
     _: str = Depends(verify_api_key),
 ):
     ts = datetime.fromisoformat(txn.timestamp) if txn.timestamp else datetime.now(timezone.utc)
-    hour = ts.hour
-    day = ts.weekday()
 
-    txn_dict = txn.model_dump()
-    txn_dict["hour_of_day"] = hour
-    txn_dict["day_of_week"] = day
-    txn_dict["timestamp"] = ts.isoformat()
+    result = _run_scoring(txn, ts, txn.merchant_id)
 
-    result = score_transaction(txn_dict)
+    masked_txn = mask_sensitive_fields(txn.model_dump())
 
     db_txn = Transaction(
         transaction_id=txn.transaction_id,
@@ -58,7 +90,7 @@ async def create_transaction(
         transaction_id=db_txn.id,
         action="score",
         details={
-            "features": txn_dict,
+            "features": masked_txn,
             "explanations": result["explanations"],
         },
         model_version=result["model_version"],
@@ -103,12 +135,8 @@ async def batch_score(
 
     for i, txn in enumerate(batch.transactions):
         ts = datetime.fromisoformat(txn.timestamp) if txn.timestamp else datetime.now(timezone.utc)
-        txn_dict = txn.model_dump()
-        txn_dict["hour_of_day"] = ts.hour
-        txn_dict["day_of_week"] = ts.weekday()
-        txn_dict["timestamp"] = ts.isoformat()
 
-        result = score_transaction(txn_dict)
+        result = _run_scoring(txn, ts, txn.merchant_id)
 
         db_txn = Transaction(
             transaction_id=txn.transaction_id,
@@ -254,7 +282,7 @@ async def get_transaction(
                     "action": a.action,
                     "model_version": a.model_version,
                     "processing_time_ms": a.processing_time_ms,
-                    "details": a.details,
+                    "details": mask_sensitive_fields(a.details) if isinstance(a.details, dict) else a.details,
                     "created_at": a.created_at.isoformat(),
                 }
                 for a in audits
