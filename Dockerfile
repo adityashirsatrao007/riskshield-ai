@@ -30,6 +30,8 @@ FROM python:3.12-slim
 COPY --from=builder /install /usr/local
 WORKDIR /app
 
+RUN mkdir -p /app/data
+
 COPY --from=builder /build/backend/ ./backend/
 COPY --from=builder /build/ml/models/ ./ml_models/
 COPY --from=builder /build/infrastructure/ ./infrastructure/
