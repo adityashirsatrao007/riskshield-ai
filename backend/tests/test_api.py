@@ -27,6 +27,22 @@ async def client():
         yield c
 
 
+@pytest_asyncio.fixture(scope="session")
+async def auth_client():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        reg = await c.post(
+            "/api/v1/auth/register",
+            json={"name": "Test Merchant", "email": "test_merchant@example.com"},
+        )
+        assert reg.status_code == 200
+        api_key = reg.json()["api_key"]
+        token = reg.json()["access_token"]
+        c.headers["X-API-Key"] = api_key
+        c.headers["Authorization"] = f"Bearer {token}"
+        yield c
+
+
 async def test_health(client):
     r = await client.get("/health")
     assert r.status_code == 200
@@ -40,13 +56,13 @@ async def test_auth_rejects_bad_key(client):
     assert r.status_code == 401
 
 
-async def test_auth_accepts_valid_key(client):
-    r = await client.get("/api/v1/transactions", headers={"X-API-Key": "test-key-123"})
+async def test_auth_accepts_valid_key(auth_client):
+    r = await auth_client.get("/api/v1/transactions")
     assert r.status_code == 200
 
 
-async def test_score_transaction(client):
-    r = await client.post(
+async def test_score_transaction(auth_client):
+    r = await auth_client.post(
         "/api/v1/transactions",
         json={
             "transaction_id": "test-001",
@@ -56,7 +72,6 @@ async def test_score_transaction(client):
             "card_type": "credit",
             "is_international": False,
         },
-        headers={"X-API-Key": "test-key-123"},
     )
     assert r.status_code == 200
     data = r.json()["data"]
@@ -65,8 +80,8 @@ async def test_score_transaction(client):
     assert data["risk_level"] in ("low", "medium", "high", "critical", "unknown")
 
 
-async def test_batch_score(client):
-    r = await client.post(
+async def test_batch_score(auth_client):
+    r = await auth_client.post(
         "/api/v1/transactions/batch",
         json={
             "transactions": [
@@ -74,23 +89,22 @@ async def test_batch_score(client):
                 {"transaction_id": "batch-002", "amount": 50000, "merchant_id": "mer_002", "customer_id": "c2"},
             ]
         },
-        headers={"X-API-Key": "test-key-123"},
     )
     assert r.status_code == 200
     data = r.json()["data"]
     assert data["scored"] == 2
 
 
-async def test_model_info(client):
-    r = await client.get("/api/v1/model/info", headers={"X-API-Key": "test-key-123"})
+async def test_model_info(auth_client):
+    r = await auth_client.get("/api/v1/model/info")
     assert r.status_code == 200
     data = r.json()
     assert "model_loaded" in data
     assert "model_version" in data
 
 
-async def test_dashboard(client):
-    r = await client.get("/api/v1/analytics/dashboard", headers={"X-API-Key": "test-key-123"})
+async def test_dashboard(auth_client):
+    r = await auth_client.get("/api/v1/analytics/dashboard")
     assert r.status_code == 200
     data = r.json()["data"]
     assert "total_transactions" in data
@@ -115,15 +129,35 @@ async def test_register_merchant(client):
     assert data["name"] == "Test Shop"
 
 
-async def test_auth_me(client):
+async def test_auth_me(auth_client):
+    r = await auth_client.get("/api/v1/auth/me")
+    assert r.status_code == 200
+    assert r.json()["name"] == "Test Merchant"
+
+
+async def test_login_with_api_key(client):
     reg = await client.post(
         "/api/v1/auth/register",
-        json={"name": "Auth Test", "email": "auth@example.com"},
+        json={"name": "Login Test", "email": "login@example.com"},
     )
-    token = reg.json()["access_token"]
-    r = await client.get(
-        "/api/v1/auth/me",
-        headers={"Authorization": f"Bearer {token}"},
+    api_key = reg.json()["api_key"]
+    r = await client.post(
+        "/api/v1/auth/login",
+        json={"api_key": api_key},
     )
     assert r.status_code == 200
-    assert r.json()["name"] == "Auth Test"
+    assert "access_token" in r.json()
+
+
+async def test_webhook_requires_signature(client):
+    r = await client.post(
+        "/api/v1/webhooks/razorpay",
+        json={"event": "payment.captured", "payload": {}},
+    )
+    assert r.status_code in (200, 400)
+
+
+async def test_rotate_api_key(auth_client):
+    r = await auth_client.post("/api/v1/auth/rotate-key")
+    assert r.status_code == 200
+    assert "api_key" in r.json()

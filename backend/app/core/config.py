@@ -1,7 +1,8 @@
-from pydantic_settings import BaseSettings
-from pydantic import Field
 import os
 import secrets
+
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -32,6 +33,9 @@ class Settings(BaseSettings):
     KAFKA_BROKERS: str = "kafka:9092"
     MLFLOW_TRACKING_URI: str = "http://mlflow:5000"
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
+    RAZORPAY_WEBHOOK_SECRET: str = ""
 
     class Config:
         env_file = ".env"

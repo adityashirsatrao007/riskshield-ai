@@ -1,11 +1,12 @@
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+
+import jwt
 from fastapi import Depends, HTTPException, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.config import settings
 from app.core.database import get_db
 
@@ -21,26 +22,7 @@ def verify_api_key_plain(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 
-async def verify_api_key(request: Request, db: AsyncSession = Depends(get_db)):
-    api_key = request.headers.get("X-API-Key")
-    if not api_key:
-        raise HTTPException(status_code=401, detail="Missing X-API-Key header")
-
-    from app.models.merchant import Merchant
-    result = await db.execute(select(Merchant).where(Merchant.is_active == True))
-    merchants = result.scalars().all()
-
-    for merchant in merchants:
-        if verify_api_key_plain(api_key, merchant.api_key_hash):
-            return merchant.api_key
-
-    if api_key == settings.RISKSHIELD_API_KEY:
-        return api_key
-
-    raise HTTPException(status_code=401, detail="Invalid API key")
-
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (
         expires_delta or timedelta(minutes=settings.JWT_EXPIRY_MINUTES)
@@ -52,13 +34,14 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def decode_token(token: str) -> dict:
     try:
         return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
 
 async def get_current_merchant(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    x_api_key: Optional[str] = None,
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
     db: AsyncSession = Depends(get_db),
 ):
     from app.models.merchant import Merchant
@@ -77,21 +60,46 @@ async def get_current_merchant(
     raise HTTPException(status_code=401, detail="Authentication required")
 
 
-async def require_api_key(request: Request, db: AsyncSession = Depends(get_db)):
+async def verify_api_key(request: Request, db: AsyncSession = Depends(get_db)):
     api_key = request.headers.get("X-API-Key")
     if not api_key:
         raise HTTPException(status_code=401, detail="Missing X-API-Key header")
 
     from app.models.merchant import Merchant
 
-    result = await db.execute(select(Merchant))
+    result = await db.execute(
+        select(Merchant.api_key_hash).where(Merchant.is_active == True)
+    )
+    hashes = [row[0] for row in result.all()]
+
+    for h in hashes:
+        if verify_api_key_plain(api_key, h):
+            return api_key
+
+    if api_key == settings.RISKSHIELD_API_KEY:
+        return api_key
+
+    raise HTTPException(status_code=401, detail="Invalid API key")
+
+
+async def require_admin(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    api_key = request.headers.get("X-API-Key")
+    if not api_key:
+        raise HTTPException(status_code=401, detail="Missing X-API-Key header")
+
+    from app.models.merchant import Merchant
+
+    result = await db.execute(
+        select(Merchant).where(Merchant.is_active == True)
+    )
     merchants = result.scalars().all()
 
-    for merchant in merchants:
-        if verify_api_key(api_key, merchant.api_key_hash):
-            if not merchant.is_active:
-                raise HTTPException(status_code=403, detail="Merchant account suspended")
-            return merchant
+    for m in merchants:
+        if verify_api_key_plain(api_key, m.api_key_hash):
+            return m
 
     if api_key == settings.RISKSHIELD_API_KEY:
         return None

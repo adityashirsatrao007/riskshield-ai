@@ -1,7 +1,7 @@
-from typing import Optional, Literal, Any
-from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
+from typing import Any, Literal
 
+from pydantic import BaseModel, Field, field_validator
 
 VALID_CARD_TYPES = {"credit", "debit", "upi", "netbanking", "wallet", "prepaid"}
 VALID_CARD_NETWORKS = {"visa", "mastercard", "amex", "rupay", "discover", "diners", "other"}
@@ -25,8 +25,8 @@ class TransactionCreate(BaseModel):
     currency: str = Field(default="INR", min_length=3, max_length=3)
     merchant_id: str = Field(..., min_length=1, max_length=64)
     customer_id: str = Field(..., min_length=1, max_length=64)
-    timestamp: Optional[str] = None
-    card_number: Optional[str] = Field(None, max_length=24)
+    timestamp: str | None = None
+    card_number: str | None = Field(None, max_length=24)
     card_type: str = Field(default="credit", max_length=16)
     card_network: str = Field(default="visa", max_length=16)
     is_international: bool = False
@@ -85,29 +85,6 @@ class MerchantCreate(BaseModel):
         return v
 
 
-class MerchantUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=128)
-    rate_limit: Optional[int] = Field(None, ge=1, le=10000)
-    status: Optional[str] = None
-
-    @field_validator("status")
-    @classmethod
-    def validate_status(cls, v: str | None) -> str | None:
-        if v is not None and v not in VALID_MERCHANT_STATUSES:
-            raise ValueError(f"status must be one of: {VALID_MERCHANT_STATUSES}")
-        return v
-
-
-class MerchantResponse(BaseModel):
-    id: str
-    name: str
-    api_key: str
-    rate_limit: int
-    status: str
-    created_at: str
-    updated_at: str
-
-
 class ModelInfoResponse(BaseModel):
     model_config = {"protected_namespaces": ()}
 
@@ -126,7 +103,7 @@ class PredictionLog(BaseModel):
     is_flagged: bool
     processing_time_ms: float
     features_used: list[str]
-    timestamp: Optional[str] = None
+    timestamp: str | None = None
 
     @field_validator("timestamp")
     @classmethod
@@ -136,7 +113,7 @@ class PredictionLog(BaseModel):
 
 class AlertUpdate(BaseModel):
     status: Literal["open", "acknowledged", "dismissed", "resolved"]
-    notes: Optional[str] = Field(None, max_length=500)
+    notes: str | None = Field(None, max_length=500)
 
 
 class BatchTransaction(BaseModel):
@@ -160,9 +137,3 @@ class PredictionResponse(BaseModel):
     explanations: list[dict[str, Any]]
     processing_time_ms: float
     model_version: str
-
-
-class HealthResponse(BaseModel):
-    status: str
-    service: str
-    checks: dict[str, str]

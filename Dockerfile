@@ -25,15 +25,21 @@ RUN python -m compileall -q backend/ infrastructure/
 
 FROM python:3.12-slim
 
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
+
 COPY --from=builder /install /usr/local
 WORKDIR /app
 
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data && chown appuser:appuser /app/data
 
 COPY --from=builder /build/backend/ ./backend/
 COPY --from=builder /build/ml/models/ ./ml_models/
 COPY --from=builder /build/infrastructure/ ./infrastructure/
 COPY --from=builder /build/frontend/dist ./static/
+
+RUN chown -R appuser:appuser /app
+
+USER appuser
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

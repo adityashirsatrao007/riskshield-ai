@@ -1,20 +1,21 @@
 from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func, desc, update
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
-from app.core.auth import verify_api_key
-from app.models.transaction import Alert
 from app.api.schemas import AlertUpdate
+from app.core.auth import verify_api_key
+from app.core.database import get_db
+from app.models.transaction import Alert
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 
 @router.get("")
 async def list_alerts(
-    status: str = None,
-    risk_level: str = None,
+    status: str | None = None,
+    risk_level: str | None = None,
     offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),

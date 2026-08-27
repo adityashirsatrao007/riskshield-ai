@@ -1,7 +1,6 @@
-import re
 import hashlib
+import re
 from typing import Any
-
 
 _SENSITIVE_FIELDS = frozenset({
     "card_number", "pan", "card_pan", "credit_card_number",
@@ -37,7 +36,6 @@ def mask_card_number(card_number: str) -> str:
     last_four = clean[-4:]
     groups = []
     for i in range(0, len(clean) - 4, 4):
-        group = clean[i:i + 4]
         groups.append("****")
     groups.append(last_four)
     return "-".join(groups)

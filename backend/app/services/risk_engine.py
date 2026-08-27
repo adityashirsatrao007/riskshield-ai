@@ -1,7 +1,6 @@
-import os
-import time
 import logging
 import threading
+import time
 
 import numpy as np
 
@@ -67,7 +66,7 @@ def get_threshold() -> float:
         return _threshold
 
 
-def _approximate_v_features(amount: float, amount_log: float, amount_zscore: float, hour: int, txn: dict = None) -> np.ndarray:
+def _approximate_v_features(amount: float, amount_log: float, amount_zscore: float, hour: int, txn: dict | None = None) -> np.ndarray:
     rng = np.random.RandomState(abs(hash((amount, hour))) % (2**31))
     base = rng.randn(28) * 0.3
 

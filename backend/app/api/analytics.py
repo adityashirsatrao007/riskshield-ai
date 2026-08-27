@@ -1,11 +1,12 @@
 from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, func, desc, case, extract
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
 from app.core.auth import verify_api_key
-from app.models.transaction import Transaction, Alert
+from app.core.database import get_db
+from app.models.transaction import Transaction
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 

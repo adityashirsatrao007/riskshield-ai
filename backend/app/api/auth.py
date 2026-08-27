@@ -1,10 +1,12 @@
 import secrets
-from fastapi import APIRouter, Depends, HTTPException, Request
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.auth import create_access_token, get_current_merchant, hash_api_key, verify_api_key_plain
 from app.core.database import get_db
-from app.core.auth import hash_api_key, verify_api_key_plain, create_access_token, get_current_merchant
 from app.models.merchant import Merchant
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -47,7 +49,6 @@ async def register_merchant(body: RegisterRequest, db: AsyncSession = Depends(ge
     merchant = Merchant(
         name=body.name,
         email=body.email,
-        api_key=raw_key,
         api_key_hash=hashed,
         tier=body.tier,
     )
@@ -68,13 +69,11 @@ async def register_merchant(body: RegisterRequest, db: AsyncSession = Depends(ge
 
 @router.post("/login", response_model=LoginResponse)
 async def login_merchant(body: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Merchant))
+    result = await db.execute(select(Merchant).where(Merchant.is_active == True))
     merchants = result.scalars().all()
 
     for merchant in merchants:
-        if merchant.api_key == body.api_key:
-            if not merchant.is_active:
-                raise HTTPException(status_code=403, detail="Account suspended")
+        if verify_api_key_plain(body.api_key, merchant.api_key_hash):
             token = create_access_token({"sub": str(merchant.id), "tier": merchant.tier})
             return LoginResponse(
                 access_token=token,
@@ -104,7 +103,6 @@ async def rotate_api_key(
     db: AsyncSession = Depends(get_db),
 ):
     new_raw = f"rsk_{secrets.token_urlsafe(32)}"
-    merchant.api_key = new_raw
     merchant.api_key_hash = hash_api_key(new_raw)
     await db.commit()
     return {"api_key": new_raw, "message": "Key rotated. Update your integrations."}

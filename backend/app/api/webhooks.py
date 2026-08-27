@@ -2,18 +2,12 @@ import hashlib
 import hmac
 import json
 import logging
-from typing import Optional
-from fastapi import APIRouter, Request, HTTPException, Header
+
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel
 
 logger = logging.getLogger("riskshield.webhooks")
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
-
-
-class RazorpayEvent(BaseModel):
-    event: str
-    payload: dict
-    created_at: int
 
 
 class WebhookLog(BaseModel):
@@ -40,11 +34,23 @@ def verify_razorpay_signature(
 @router.post("/razorpay")
 async def handle_razorpay_webhook(
     request: Request,
-    x_razorpay_signature: Optional[str] = Header(None),
+    x_razorpay_signature: str | None = Header(None),
 ):
     from datetime import datetime, timezone
 
+    from app.core.config import settings
+
     body = await request.body()
+
+    if settings.RAZORPAY_WEBHOOK_SECRET:
+        if not x_razorpay_signature:
+            logger.warning("Missing Razorpay signature header")
+            raise HTTPException(status_code=400, detail="Missing webhook signature")
+        if not verify_razorpay_signature(body, x_razorpay_signature, settings.RAZORPAY_WEBHOOK_SECRET):
+            logger.warning("Invalid Razorpay webhook signature")
+            raise HTTPException(status_code=400, detail="Invalid webhook signature")
+    else:
+        logger.warning("Webhook signature verification disabled (no secret configured)")
 
     try:
         event = json.loads(body)

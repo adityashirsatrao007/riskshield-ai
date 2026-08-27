@@ -19,7 +19,7 @@ def upgrade() -> None:
         "transactions",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("transaction_id", sa.String(32), nullable=False),
-        sa.Column("amount", sa.Float(), nullable=False),
+        sa.Column("amount", sa.Numeric(12, 2), nullable=False),
         sa.Column("currency", sa.String(3), server_default="INR"),
         sa.Column("merchant_id", sa.String(16), nullable=False),
         sa.Column("customer_id", sa.String(16), nullable=False),
@@ -35,6 +35,10 @@ def upgrade() -> None:
     )
     op.create_index("ix_transactions_transaction_id", "transactions", ["transaction_id"], unique=True)
     op.create_index("ix_transactions_merchant_id", "transactions", ["merchant_id"])
+    op.create_index("ix_transactions_timestamp", "transactions", ["timestamp"])
+    op.create_index("ix_transactions_risk_level", "transactions", ["risk_level"])
+    op.create_index("ix_transactions_is_flagged", "transactions", ["is_flagged"])
+    op.create_index("ix_transactions_created_at", "transactions", ["created_at"])
 
     op.create_table(
         "alerts",
@@ -50,6 +54,8 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_alerts_status", "alerts", ["status"])
+    op.create_index("ix_alerts_transaction_id", "alerts", ["transaction_id"])
+    op.create_index("ix_alerts_created_at", "alerts", ["created_at"])
 
     op.create_table(
         "audit_trails",
@@ -63,6 +69,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["transaction_id"], ["transactions.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
+    op.create_index("ix_audit_trails_transaction_id", "audit_trails", ["transaction_id"])
 
     op.create_table(
         "merchant_stats",
@@ -76,12 +83,12 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("merchant_id"),
     )
+    op.create_index("ix_merchant_stats_merchant_id", "merchant_stats", ["merchant_id"])
 
     op.create_table(
         "merchants",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("name", sa.String(128), nullable=False),
-        sa.Column("api_key", sa.String(64), nullable=False),
         sa.Column("api_key_hash", sa.String(128), nullable=False),
         sa.Column("email", sa.String(256), nullable=True),
         sa.Column("is_active", sa.Boolean(), server_default="1"),
@@ -91,7 +98,10 @@ def upgrade() -> None:
         sa.Column("last_active", sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_merchants_api_key", "merchants", ["api_key"], unique=True)
+    op.create_index("ix_merchants_api_key_hash", "merchants", ["api_key_hash"], unique=True)
+    op.create_index("ix_merchants_is_active", "merchants", ["is_active"])
+    op.create_index("ix_merchants_tier", "merchants", ["tier"])
+    op.create_index("ix_merchants_created_at", "merchants", ["created_at"])
 
 
 def downgrade() -> None:

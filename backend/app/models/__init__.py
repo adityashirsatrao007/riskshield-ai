@@ -1,4 +1,4 @@
-from app.models.transaction import Transaction, Alert, AuditTrail, MerchantStats
 from app.models.merchant import Merchant
+from app.models.transaction import Alert, AuditTrail, MerchantStats, Transaction
 
-__all__ = ["Transaction", "Alert", "AuditTrail", "MerchantStats", "Merchant"]
+__all__ = ["Alert", "AuditTrail", "Merchant", "MerchantStats", "Transaction"]

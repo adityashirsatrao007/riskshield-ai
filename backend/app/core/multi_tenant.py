@@ -1,10 +1,10 @@
-import time
-import secrets
 import logging
+import secrets
+import time
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import Request, HTTPException
+from fastapi import HTTPException
 
 logger = logging.getLogger("riskshield")
 
@@ -129,7 +129,6 @@ class MerchantMiddleware:
         api_key = request.headers.get("X-API-Key")
         if not api_key:
             response = HTTPException(status_code=401, detail="Missing X-API-Key header")
-            from starlette.responses import JSONResponse
 
             await send(
                 {
@@ -148,7 +147,6 @@ class MerchantMiddleware:
 
         merchant = MerchantManager.get_merchant_by_api_key(api_key)
         if not merchant:
-            from starlette.responses import JSONResponse
 
             await send(
                 {
@@ -166,7 +164,6 @@ class MerchantMiddleware:
             return
 
         if merchant["status"] != "active":
-            from starlette.responses import JSONResponse
 
             await send(
                 {
@@ -184,7 +181,6 @@ class MerchantMiddleware:
             return
 
         if not _check_rate_limit(merchant["id"], merchant["rate_limit"]):
-            from starlette.responses import JSONResponse
 
             await send(
                 {

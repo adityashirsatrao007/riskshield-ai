@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime
+
+from sqlalchemy import Boolean, Column, DateTime, Integer, String
+
 from app.core.database import Base
 
 
@@ -12,11 +14,10 @@ class Merchant(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(128), nullable=False)
-    api_key = Column(String(64), unique=True, nullable=False, index=True)
-    api_key_hash = Column(String(128), nullable=False)
+    api_key_hash = Column(String(128), nullable=False, unique=True, index=True)
     email = Column(String(256), unique=True, nullable=True)
-    is_active = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True, index=True)
     rate_limit = Column(Integer, default=120)
-    tier = Column(String(16), default="free")
-    created_at = Column(DateTime, default=_utcnow)
+    tier = Column(String(16), default="free", index=True)
+    created_at = Column(DateTime, default=_utcnow, index=True)
     last_active = Column(DateTime, default=_utcnow, onupdate=_utcnow)

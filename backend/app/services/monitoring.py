@@ -1,11 +1,10 @@
-import time
 import logging
 import threading
 from collections import deque
 from datetime import datetime, timezone
 from typing import Any
 
-from prometheus_client import Counter, Histogram, Gauge, Summary
+from prometheus_client import Counter, Gauge, Histogram, Summary
 
 logger = logging.getLogger("riskshield")
 
@@ -190,6 +189,10 @@ class DriftDetector:
 
 
 class MetricsCollector:
+    _predictions_counter = PREDICTIONS_TOTAL
+    _flagged_counter = FRAUD_DETECTED_TOTAL
+    _prediction_latency = PROCESSING_TIME
+
     def __init__(self, prediction_logger: PredictionLogger, drift_detector: DriftDetector):
         self.prediction_logger = prediction_logger
         self.drift_detector = drift_detector
@@ -216,6 +219,7 @@ class MetricsCollector:
             "model_version": risk_engine.get_model_version(),
             "features": risk_engine.get_feature_names(),
             "threshold": risk_engine.get_threshold(),
+            "model_type": "random_forest",
         }
 
 

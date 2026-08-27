@@ -1,15 +1,18 @@
+import asyncio
 from datetime import datetime, timezone
+from functools import partial
+
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func, desc
+from sqlalchemy import desc, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.api.schemas import BatchTransaction, TransactionCreate
 from app.core.auth import verify_api_key
-from app.models.transaction import Transaction, Alert, AuditTrail
-from app.services.risk_engine import score_transaction
-from app.services.pci import mask_sensitive_fields, mask_card_number, validate_card_format
-from app.api.schemas import TransactionCreate, BatchTransaction
+from app.core.database import get_db
+from app.models.transaction import Alert, AuditTrail, Transaction
+from app.services import risk_engine
+from app.services.pci import mask_card_number, mask_sensitive_fields, validate_card_format
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -19,7 +22,12 @@ def _get_prediction_logger():
     return prediction_logger
 
 
-def _run_scoring(txn: TransactionCreate, ts: datetime, merchant_id: str) -> dict:
+def _get_metrics_collector():
+    from app.main import metrics_collector
+    return metrics_collector
+
+
+def _run_scoring_sync(txn: TransactionCreate, ts: datetime, merchant_id: str) -> dict:
     txn_dict = txn.model_dump()
     txn_dict["hour_of_day"] = ts.hour
     txn_dict["day_of_week"] = ts.weekday()
@@ -31,11 +39,11 @@ def _run_scoring(txn: TransactionCreate, ts: datetime, merchant_id: str) -> dict
         else:
             txn_dict["card_masked"] = txn.card_number
 
-    result = score_transaction(txn_dict)
+    result = risk_engine.score_transaction(txn_dict)
 
     try:
-        logger = _get_prediction_logger()
-        logger.log(
+        logger_inst = _get_prediction_logger()
+        logger_inst.log(
             transaction_id=txn.transaction_id,
             merchant_id=merchant_id,
             risk_score=result["risk_score"],
@@ -44,10 +52,22 @@ def _run_scoring(txn: TransactionCreate, ts: datetime, merchant_id: str) -> dict
             processing_time_ms=result["processing_time_ms"],
             features_used=result.get("features_used", []),
         )
+        metrics = _get_metrics_collector()
+        metrics._predictions_counter.inc()
+        if result["is_flagged"]:
+            metrics._flagged_counter.inc()
+        metrics._prediction_latency.observe(result["processing_time_ms"] / 1000.0)
     except Exception:
         pass
 
     return result
+
+
+async def _run_scoring(txn: TransactionCreate, ts: datetime, merchant_id: str) -> dict:
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        None, partial(_run_scoring_sync, txn, ts, merchant_id)
+    )
 
 
 @router.post("")
@@ -58,7 +78,7 @@ async def create_transaction(
 ):
     ts = datetime.fromisoformat(txn.timestamp) if txn.timestamp else datetime.now(timezone.utc)
 
-    result = _run_scoring(txn, ts, txn.merchant_id)
+    result = await _run_scoring(txn, ts, txn.merchant_id)
 
     masked_txn = mask_sensitive_fields(txn.model_dump())
 
@@ -136,7 +156,7 @@ async def batch_score(
     for i, txn in enumerate(batch.transactions):
         ts = datetime.fromisoformat(txn.timestamp) if txn.timestamp else datetime.now(timezone.utc)
 
-        result = _run_scoring(txn, ts, txn.merchant_id)
+        result = await _run_scoring(txn, ts, txn.merchant_id)
 
         db_txn = Transaction(
             transaction_id=txn.transaction_id,
@@ -194,8 +214,8 @@ async def batch_score(
 
 @router.get("")
 async def list_transactions(
-    risk_level: str = None,
-    merchant_id: str = None,
+    risk_level: str | None = None,
+    merchant_id: str | None = None,
     offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -223,7 +243,7 @@ async def list_transactions(
             {
                 "id": t.id,
                 "transaction_id": t.transaction_id,
-                "amount": t.amount,
+                "amount": float(t.amount) if t.amount else 0.0,
                 "currency": t.currency,
                 "merchant_id": t.merchant_id,
                 "customer_id": t.customer_id,
@@ -265,7 +285,7 @@ async def get_transaction(
         "data": {
             "id": txn.id,
             "transaction_id": txn.transaction_id,
-            "amount": txn.amount,
+            "amount": float(txn.amount) if txn.amount else 0.0,
             "currency": txn.currency,
             "merchant_id": txn.merchant_id,
             "customer_id": txn.customer_id,

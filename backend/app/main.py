@@ -1,27 +1,30 @@
+import logging
 import os
-import sys
 import time
 import uuid
-import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, Depends
+
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
-from app.core.config import settings
-from app.core.database import init_db
-from app.models import Transaction, Alert, AuditTrail, MerchantStats, Merchant
-from app.services import risk_engine
-from app.services.monitoring import (
-    PredictionLogger, DriftDetector, MetricsCollector, AlertManager,
-)
-from app.api.transactions import router as txn_router
 from app.api.alerts import router as alert_router
 from app.api.analytics import router as analytics_router
 from app.api.auth import router as auth_router
+from app.api.transactions import router as txn_router
 from app.api.webhooks import router as webhook_router
-
+from app.core.auth import verify_api_key
+from app.core.config import settings
+from app.core.database import init_db
+from app.models import Merchant
+from app.services import risk_engine
+from app.services.monitoring import (
+    AlertManager,
+    DriftDetector,
+    MetricsCollector,
+    PredictionLogger,
+)
 
 prediction_logger = PredictionLogger()
 drift_detector = DriftDetector()
@@ -35,7 +38,7 @@ RATE_LIMIT_WINDOW = 60.0
 
 
 def setup_logging():
-    handler = logging.StreamHandler(sys.stdout)
+    handler = logging.StreamHandler()
     handler.setFormatter(
         logging.Formatter(
             "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
@@ -118,23 +121,24 @@ async def rate_limit_middleware(request: Request, call_next):
 
     client_ip = request.client.host if request.client else "unknown"
     now = time.time()
-    key = f"{client_ip}"
 
-    if key not in _rate_limit_store:
-        _rate_limit_store[key] = []
+    if client_ip not in _rate_limit_store:
+        _rate_limit_store[client_ip] = []
 
-    _rate_limit_store[key] = [t for t in _rate_limit_store[key] if now - t < RATE_LIMIT_WINDOW]
+    _rate_limit_store[client_ip] = [
+        t for t in _rate_limit_store[client_ip] if now - t < RATE_LIMIT_WINDOW
+    ]
 
-    if len(_rate_limit_store[key]) >= settings.RATE_LIMIT_PER_MINUTE:
+    if len(_rate_limit_store[client_ip]) >= settings.RATE_LIMIT_PER_MINUTE:
         return JSONResponse(
             status_code=429,
             content={"detail": "Rate limit exceeded. Try again later."},
             headers={"Retry-After": str(int(RATE_LIMIT_WINDOW))},
         )
 
-    _rate_limit_store[key].append(now)
+    _rate_limit_store[client_ip].append(now)
 
-    if len(_rate_limit_store) > 10000:
+    if len(_rate_limit_store) > 5000:
         cutoff = now - RATE_LIMIT_WINDOW
         stale = [k for k, v in _rate_limit_store.items() if not v or v[-1] < cutoff]
         for k in stale:
@@ -144,9 +148,7 @@ async def rate_limit_middleware(request: Request, call_next):
 
 
 ALLOWED_ORIGINS = [
-    o.strip()
-    for o in settings.CORS_ORIGINS.split(",")
-    if o.strip()
+    o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()
 ]
 app.add_middleware(
     CORSMiddleware,
@@ -165,8 +167,9 @@ app.include_router(analytics_router, prefix=settings.API_PREFIX)
 
 @app.get("/health")
 async def health():
-    from app.core.database import async_session
     from sqlalchemy import text
+
+    from app.core.database import async_session
 
     db_ok = False
     model_ok = risk_engine.is_loaded()
@@ -200,6 +203,7 @@ async def metrics():
 @app.get(f"{settings.API_PREFIX}/model/info")
 async def model_info():
     from app.api.schemas import ModelInfoResponse
+
     info = metrics_collector.get_model_info()
     return ModelInfoResponse(
         model_loaded=info["model_loaded"],
@@ -211,7 +215,7 @@ async def model_info():
 
 
 @app.get(f"{settings.API_PREFIX}/predictions/log")
-async def prediction_log(n: int = 100):
+async def prediction_log(n: int = 100, _: str = Depends(verify_api_key)):
     from app.api.schemas import PredictionLog
     logs = prediction_logger.get_recent(n)
     validated = []
@@ -224,46 +228,92 @@ async def prediction_log(n: int = 100):
 
 
 @app.get(f"{settings.API_PREFIX}/monitoring/stats")
-async def monitoring_stats():
+async def monitoring_stats(_: str = Depends(verify_api_key)):
     return {"success": True, "data": metrics_collector.get_prometheus_metrics()}
 
 
 @app.get(f"{settings.API_PREFIX}/monitoring/alerts")
-async def monitoring_alerts():
+async def monitoring_alerts(_: str = Depends(verify_api_key)):
     return {"success": True, "data": alert_manager.get_recent_alerts()}
 
 
 @app.get(f"{settings.API_PREFIX}/merchants")
-async def list_merchants():
-    from app.core.multi_tenant import MerchantManager
-    return {"success": True, "data": MerchantManager.list_merchants()}
+async def list_merchants(_: str = Depends(verify_api_key)):
+    from sqlalchemy import select as sa_select
+
+    from app.core.database import async_session
+    async with async_session() as session:
+        result = await session.execute(sa_select(Merchant))
+        merchants = result.scalars().all()
+    return {
+        "success": True,
+        "data": [
+            {
+                "id": m.id,
+                "name": m.name,
+                "email": m.email,
+                "tier": m.tier,
+                "is_active": m.is_active,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in merchants
+        ],
+    }
 
 
 @app.post(f"{settings.API_PREFIX}/merchants")
-async def create_merchant(request: Request):
-    from app.api.schemas import MerchantCreate, MerchantResponse
-    from app.core.multi_tenant import MerchantManager
+async def create_merchant(
+    request: Request,
+    _: str = Depends(verify_api_key),
+):
+    import secrets as _secrets
+
+    from app.api.schemas import MerchantCreate
+    from app.core.auth import hash_api_key
 
     body = await request.json()
-    merchant = MerchantCreate(**body)
-    created = MerchantManager.create_merchant(
-        name=merchant.name,
-        rate_limit=merchant.rate_limit,
-        status=merchant.status,
-    )
-    return {"success": True, "data": created}
+    merchant_data = MerchantCreate(**body)
+
+    raw_key = f"rsk_{_secrets.token_urlsafe(32)}"
+    hashed = hash_api_key(raw_key)
+
+    from sqlalchemy import insert as sa_insert
+
+    from app.core.database import async_session
+    async with async_session() as session:
+        result = await session.execute(
+            sa_insert(Merchant).values(
+                name=merchant_data.name,
+                api_key_hash=hashed,
+                rate_limit=merchant_data.rate_limit,
+                status=merchant_data.status,
+            ).returning(Merchant.id)
+        )
+        merchant_id = result.scalar_one()
+        await session.commit()
+
+    return {"success": True, "data": {"id": merchant_id, "api_key": raw_key}}
 
 
-static_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "static")
+static_dir = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "static"
+)
 if os.path.isdir(static_dir):
-    from fastapi.staticfiles import StaticFiles
     from fastapi.responses import FileResponse
+    from fastapi.staticfiles import StaticFiles
 
-    app.mount("/assets", StaticFiles(directory=os.path.join(static_dir, "assets")), name="assets")
+    app.mount(
+        "/assets",
+        StaticFiles(directory=os.path.join(static_dir, "assets")),
+        name="assets",
+    )
 
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
-        file_path = os.path.join(static_dir, full_path)
+        file_path = os.path.realpath(os.path.join(static_dir, full_path))
+        static_real = os.path.realpath(static_dir)
+        if not file_path.startswith(static_real + os.sep) and file_path != static_real:
+            return JSONResponse(status_code=403, detail="Forbidden")
         if os.path.isfile(file_path):
             return FileResponse(file_path)
         return FileResponse(os.path.join(static_dir, "index.html"))
