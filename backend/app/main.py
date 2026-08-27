@@ -100,6 +100,7 @@ async def add_request_id_and_timing(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
     if request.url.path not in ("/health", "/metrics"):
         logger.info(

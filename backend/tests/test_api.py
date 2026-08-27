@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///./data/riskshield_test.db")
 os.environ.setdefault("MODEL_PATH", "../../ml/models/fraud_detector_v2.joblib")
 os.environ.setdefault("RISKSHIELD_API_KEY", "test-key-123")
+os.environ.setdefault("RISKSHIELD_SECRET_KEY", "test-secret-key-for-testing-only-32chars!")
 
 from httpx import AsyncClient, ASGITransport
 from app.core.database import init_db
@@ -154,7 +155,7 @@ async def test_webhook_requires_signature(client):
         "/api/v1/webhooks/razorpay",
         json={"event": "payment.captured", "payload": {}},
     )
-    assert r.status_code in (200, 400)
+    assert r.status_code in (200, 400, 503)
 
 
 async def test_rotate_api_key(auth_client):

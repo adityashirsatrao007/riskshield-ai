@@ -3,8 +3,6 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 from fastapi import Depends, HTTPException, Request
-
-logger = logging.getLogger("riskshield")
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from passlib.context import CryptContext
 from sqlalchemy import select
@@ -12,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
+
+logger = logging.getLogger("riskshield")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer(auto_error=False)
@@ -86,19 +86,14 @@ async def verify_api_key(request: Request, db: AsyncSession = Depends(get_db)):
     raise HTTPException(status_code=401, detail="Invalid API key")
 
 
-async def require_admin(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-):
+async def require_admin(request: Request, db: AsyncSession = Depends(get_db)):
     api_key = request.headers.get("X-API-Key")
     if not api_key:
         raise HTTPException(status_code=401, detail="Missing X-API-Key header")
 
     from app.models.merchant import Merchant
 
-    result = await db.execute(
-        select(Merchant).where(Merchant.is_active == True)
-    )
+    result = await db.execute(select(Merchant).where(Merchant.is_active == True))
     merchants = result.scalars().all()
 
     for m in merchants:
@@ -106,7 +101,7 @@ async def require_admin(
             return m
 
     if api_key == settings.RISKSHIELD_API_KEY:
-        logger.warning("Admin API key used for merchant lookup")
+        logger.warning("Admin API key used for admin endpoint")
         return None
 
     raise HTTPException(status_code=401, detail="Invalid API key")

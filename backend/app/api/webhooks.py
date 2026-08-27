@@ -2,8 +2,8 @@ import hashlib
 import hmac
 import json
 import logging
-
-from fastapi import APIRouter, Header, HTTPException, Request
+from typing import Optional
+from fastapi import APIRouter, Request, HTTPException, Header
 from pydantic import BaseModel
 
 logger = logging.getLogger("riskshield.webhooks")
@@ -34,23 +34,27 @@ def verify_razorpay_signature(
 @router.post("/razorpay")
 async def handle_razorpay_webhook(
     request: Request,
-    x_razorpay_signature: str | None = Header(None),
+    x_razorpay_signature: Optional[str] = Header(None),
 ):
     from datetime import datetime, timezone
-
     from app.core.config import settings
 
     body = await request.body()
 
-    if settings.RAZORPAY_WEBHOOK_SECRET:
-        if not x_razorpay_signature:
-            logger.warning("Missing Razorpay signature header")
-            raise HTTPException(status_code=400, detail="Missing webhook signature")
-        if not verify_razorpay_signature(body, x_razorpay_signature, settings.RAZORPAY_WEBHOOK_SECRET):
-            logger.warning("Invalid Razorpay webhook signature")
-            raise HTTPException(status_code=400, detail="Invalid webhook signature")
-    else:
-        logger.warning("Webhook signature verification disabled (no secret configured)")
+    if not settings.RAZORPAY_WEBHOOK_SECRET:
+        logger.error("Webhook received but RAZORPAY_WEBHOOK_SECRET not configured")
+        raise HTTPException(
+            status_code=503,
+            detail="Webhook processing not configured. Set RAZORPAY_WEBHOOK_SECRET.",
+        )
+
+    if not x_razorpay_signature:
+        logger.warning("Missing Razorpay signature header")
+        raise HTTPException(status_code=400, detail="Missing webhook signature")
+
+    if not verify_razorpay_signature(body, x_razorpay_signature, settings.RAZORPAY_WEBHOOK_SECRET):
+        logger.warning("Invalid Razorpay webhook signature")
+        raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
     try:
         event = json.loads(body)
@@ -129,4 +133,6 @@ async def _handle_order_paid(payload: dict):
 
 @router.get("/razorpay/logs")
 async def get_webhook_logs():
+    from app.core.auth import verify_api_key
+    from fastapi import Depends
     return {"success": True, "data": [log.model_dump() for log in _webhook_log[-50:]]}

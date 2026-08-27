@@ -35,8 +35,6 @@ def load_model(model_path: str) -> None:
         _scaler = bundle.get("scaler")
         _metadata = bundle.get("metadata", {})
         _threshold = bundle.get("threshold", 0.5)
-        if _threshold > 0.3:
-            _threshold = 0.05
         _feature_names = bundle.get("features", list(_FEATURE_NAMES))
         _model_version = _metadata.get("version", "1.0.0")
         _model_type = type(_model).__name__

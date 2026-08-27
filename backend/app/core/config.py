@@ -5,19 +5,16 @@ from pydantic_settings import BaseSettings
 
 logger = logging.getLogger("riskshield")
 
-_DEV_DEFAULTS = {
-    "SECRET_KEY": "dev-only-insecure-key-do-not-use-in-production",
-    "RISKSHIELD_API_KEY": "dev-only-admin-key-do-not-use-in-production",
-    "DATABASE_URL": "sqlite+aiosqlite:///./data/riskshield.db",
-}
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"), override=False)
 
 
 class Settings(BaseSettings):
     DATABASE_URL: str = Field(
-        default_factory=lambda: os.environ.get("DATABASE_URL", _DEV_DEFAULTS["DATABASE_URL"]),
+        default_factory=lambda: os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./data/riskshield.db"),
     )
     SECRET_KEY: str = Field(
-        default_factory=lambda: os.environ.get("RISKSHIELD_SECRET_KEY", _DEV_DEFAULTS["SECRET_KEY"]),
+        default_factory=lambda: os.environ.get("RISKSHIELD_SECRET_KEY", ""),
     )
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRY_MINUTES: int = 60
@@ -38,7 +35,7 @@ class Settings(BaseSettings):
     )
 
     RISKSHIELD_API_KEY: str = Field(
-        default_factory=lambda: os.environ.get("RISKSHIELD_API_KEY", _DEV_DEFAULTS["RISKSHIELD_API_KEY"]),
+        default_factory=lambda: os.environ.get("RISKSHIELD_API_KEY", ""),
     )
 
     REDIS_URL: str = Field(default_factory=lambda: os.environ.get("REDIS_URL", "redis://redis:6379/0"))
@@ -58,12 +55,23 @@ class Settings(BaseSettings):
 
     @field_validator("SECRET_KEY")
     @classmethod
-    def _warn_insecure_defaults(cls, v: str) -> str:
-        insecure = {"dev-only-insecure-key-do-not-use-in-production", "change-me", "change-me-to-a-random-string"}
-        if v in insecure:
-            logger.warning(
-                "SECURITY: SECRET_KEY is using an insecure default. "
-                "Set RISKSHIELD_SECRET_KEY env var for production."
+    def _enforce_secret_key(cls, v: str) -> str:
+        if not v:
+            raise ValueError(
+                "RISKSHIELD_SECRET_KEY is required. "
+                "Generate one with: python3 -c \"import secrets; print(secrets.token_urlsafe(64))\""
+            )
+        if len(v) < 32:
+            raise ValueError("RISKSHIELD_SECRET_KEY must be at least 32 characters")
+        return v
+
+    @field_validator("RISKSHIELD_API_KEY")
+    @classmethod
+    def _enforce_admin_key(cls, v: str) -> str:
+        if not v:
+            raise ValueError(
+                "RISKSHIELD_API_KEY is required. "
+                "Generate one with: python3 -c \"import secrets; print(secrets.token_urlsafe(32))\""
             )
         return v
 

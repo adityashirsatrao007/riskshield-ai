@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime, timezone
 from functools import partial
 
@@ -13,6 +14,8 @@ from app.core.database import get_db
 from app.models.transaction import Alert, AuditTrail, Transaction
 from app.services import risk_engine
 from app.services.pci import mask_card_number, mask_sensitive_fields, validate_card_format
+
+logger = logging.getLogger("riskshield")
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -37,7 +40,9 @@ def _run_scoring_sync(txn: TransactionCreate, ts: datetime, merchant_id: str) ->
         if validate_card_format(txn.card_number):
             txn_dict["card_masked"] = mask_card_number(txn.card_number)
         else:
-            txn_dict["card_masked"] = txn.card_number
+            txn_dict["card_masked"] = "****"
+
+    txn_dict.pop("card_number", None)
 
     result = risk_engine.score_transaction(txn_dict)
 
@@ -57,8 +62,8 @@ def _run_scoring_sync(txn: TransactionCreate, ts: datetime, merchant_id: str) ->
         if result["is_flagged"]:
             metrics._flagged_counter.inc()
         metrics._prediction_latency.observe(result["processing_time_ms"] / 1000.0)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to log prediction metrics: %s", e)
 
     return result
 
