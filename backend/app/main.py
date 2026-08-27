@@ -11,6 +11,7 @@ from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from app.core.config import settings
 from app.core.database import init_db
+from app.models import Transaction, Alert, AuditTrail, MerchantStats, Merchant
 from app.services import risk_engine
 from app.services.monitoring import (
     PredictionLogger, DriftDetector, MetricsCollector, AlertManager,
@@ -18,6 +19,8 @@ from app.services.monitoring import (
 from app.api.transactions import router as txn_router
 from app.api.alerts import router as alert_router
 from app.api.analytics import router as analytics_router
+from app.api.auth import router as auth_router
+from app.api.webhooks import router as webhook_router
 
 
 prediction_logger = PredictionLogger()
@@ -73,7 +76,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="RiskShield AI",
     description="Payment fraud detection and chargeback prevention for merchants",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -142,7 +145,7 @@ async def rate_limit_middleware(request: Request, call_next):
 
 ALLOWED_ORIGINS = [
     o.strip()
-    for o in os.environ.get("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
+    for o in settings.CORS_ORIGINS.split(",")
     if o.strip()
 ]
 app.add_middleware(
@@ -153,9 +156,12 @@ app.add_middleware(
     allow_headers=["X-API-Key", "Content-Type", "Authorization"],
 )
 
+app.include_router(auth_router, prefix=settings.API_PREFIX)
+app.include_router(webhook_router, prefix=settings.API_PREFIX)
 app.include_router(txn_router, prefix=settings.API_PREFIX)
 app.include_router(alert_router, prefix=settings.API_PREFIX)
 app.include_router(analytics_router, prefix=settings.API_PREFIX)
+
 
 @app.get("/health")
 async def health():
@@ -175,6 +181,7 @@ async def health():
     return {
         "status": status,
         "service": "riskshield-api",
+        "version": "2.0.0",
         "checks": {
             "database": "ok" if db_ok else "error",
             "model": "loaded" if model_ok else "missing",

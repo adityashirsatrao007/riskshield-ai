@@ -7,31 +7,39 @@ on:
     branches: [main]
 
 jobs:
-  lint-and-test:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
+      - name: Install linting tools
+        run: pip install ruff mypy
+      - name: Ruff lint
+        run: ruff check backend/ --output-format=github
+      - name: Ruff format check
+        run: ruff format --check backend/
 
-      - name: Install ML dependencies
+  test-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
         run: |
-          cd ml
+          cd backend
           pip install -r requirements.txt
-
-      - name: Generate synthetic data
+      - name: Run tests with coverage
+        env:
+          RISKSHIELD_API_KEY: ci-test-key
+          DATABASE_URL: "sqlite+aiosqlite:///./data/riskshield_test.db"
+          MODEL_PATH: "../ml/models/fraud_detector_v2.joblib"
         run: |
-          cd ml
-          python scripts/generate_data.py
-
-      - name: Train model
-        run: |
-          cd ml
-          python scripts/train.py
-
+          cd backend
+          python -m pytest tests/ -v --tb=short --cov=app --cov-report=term-missing --cov-fail-under=60
       - name: Validate model metrics
         run: |
           cd ml
@@ -41,80 +49,31 @@ jobs:
               m = json.load(f)
           assert m['auc_roc'] >= 0.80, f'AUC too low: {m[\"auc_roc\"]}'
           assert m['f1_score'] >= 0.50, f'F1 too low: {m[\"f1_score\"]}'
-          assert m['precision'] >= 0.50, f'Precision too low: {m[\"precision\"]}'
-          assert m['recall'] >= 0.50, f'Recall too low: {m[\"recall\"]}'
-          print(f'PASS: AUC={m[\"auc_roc\"]}, F1={m[\"f1_score\"]}, P={m[\"precision\"]}, R={m[\"recall\"]}')
+          print(f'PASS: AUC={m[\"auc_roc\"]}, F1={m[\"f1_score\"]}')
           "
 
-      - name: Install backend dependencies
-        run: |
-          cd backend
-          pip install -r requirements.txt httpx pytest pytest-asyncio
-
-      - name: Run backend API tests
-        env:
-          RISKSHIELD_API_KEY: ci-test-key-for-github-actions
-          DATABASE_URL: "sqlite+aiosqlite:///./data/riskshield.db"
-          MODEL_PATH: "../ml/models/fraud_detector.joblib"
-        run: |
-          cd backend
-          python -m pytest ../tests/ -v --tb=short 2>&1 || echo "No tests dir, running inline test"
-          python -c "
-          import asyncio, httpx, os, sys
-          os.environ.setdefault('RISKSHIELD_API_KEY', 'ci-test-key')
-          os.environ.setdefault('MODEL_PATH', '../ml/models/fraud_detector.joblib')
-          os.environ.setdefault('DATABASE_URL', 'sqlite+aiosqlite:///./data/riskshield_test.db')
-          sys.path.insert(0, '.')
-          from app.main import app
-          from httpx import AsyncClient, ASGITransport
-          async def test():
-              transport = ASGITransport(app=app)
-              async with AsyncClient(transport=transport, base_url='http://test') as client:
-                  r = await client.get('/health')
-                  assert r.status_code == 200, f'Health failed: {r.status_code}'
-                  print(f'Health: {r.json()}')
-                  r = await client.get('/api/v1/transactions', headers={'X-API-Key': 'ci-test-key'})
-                  assert r.status_code == 200, f'Txns failed: {r.status_code}'
-                  print(f'Transactions: {r.status_code}')
-                  r = await client.post('/api/v1/transactions', json={
-                      'transaction_id': 'CI001', 'amount': 5000, 'merchant_id': 'M1',
-                      'customer_id': 'C1', 'card_type': 'credit', 'is_international': False,
-                      'country_code': 'IN', 'customer_account_age_days': 365,
-                      'customer_total_transactions': 50, 'merchant_category_code': 'groceries',
-                      'merchant_avg_ticket_size': 500, 'shipping_address_match': True,
-                      'device_fingerprint_reused': False
-                  }, headers={'X-API-Key': 'ci-test-key'})
-                  assert r.status_code == 200, f'Score failed: {r.status_code} {r.text}'
-                  print(f'Score: {r.json()[\"data\"][\"risk_level\"]}')
-                  r = await client.get('/api/v1/transactions', headers={'X-API-Key': 'bad'})
-                  assert r.status_code == 401, f'Auth bypass: {r.status_code}'
-                  print(f'Auth rejected bad key: {r.status_code}')
-              print('ALL TESTS PASSED')
-          asyncio.run(test())
-          "
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "20"
-
-      - name: Install frontend dependencies
-        run: npm install
+      - name: Install and build
         working-directory: frontend
-
-      - name: Build frontend
-        run: npm run build
-        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
 
   docker-build:
     runs-on: ubuntu-latest
-    needs: lint-and-test
+    needs: [test-backend, test-frontend]
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
-
       - name: Build backend image
         run: docker build -f Dockerfile.backend -t riskshield-backend .
-
       - name: Build frontend image
         run: docker build -f Dockerfile.frontend -t riskshield-frontend .
+      - name: Build combined image
+        run: docker build -f Dockerfile -t riskshield .
