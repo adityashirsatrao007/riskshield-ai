@@ -19,14 +19,14 @@ class Transaction(Base):
     currency = Column(String(3), default="INR")
     merchant_id = Column(String(16), nullable=False, index=True)
     customer_id = Column(String(16), nullable=False)
-    timestamp = Column(DateTime, nullable=False, index=True)
+    timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
     card_type = Column(String(16))
     is_international = Column(Boolean, default=False)
     risk_score = Column(Float, default=0.0)
     risk_level = Column(String(16), default="low", index=True)
     is_flagged = Column(Boolean, default=False, index=True)
     is_resolved = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=_utcnow, index=True)
+    created_at = Column(DateTime(timezone=True), default=_utcnow, index=True)
 
     alerts = relationship("Alert", back_populates="transaction", cascade="all, delete-orphan")
     audit_trails = relationship("AuditTrail", back_populates="transaction", cascade="all, delete-orphan")
@@ -41,8 +41,8 @@ class Alert(Base):
     risk_level = Column(String(16), nullable=False)
     explanation = Column(JSON, default=list)
     status = Column(String(16), default="open", index=True)
-    created_at = Column(DateTime, default=_utcnow, index=True)
-    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow, index=True)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
     transaction = relationship("Transaction", back_populates="alerts")
 
@@ -56,7 +56,7 @@ class AuditTrail(Base):
     details = Column(JSON, default=dict)
     model_version = Column(String(16))
     processing_time_ms = Column(Float)
-    created_at = Column(DateTime, default=_utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
 
     transaction = relationship("Transaction", back_populates="audit_trails")
 
@@ -70,4 +70,4 @@ class MerchantStats(Base):
     flagged_count = Column(Integer, default=0)
     resolved_count = Column(Integer, default=0)
     total_potential_savings = Column(Float, default=0.0)
-    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)

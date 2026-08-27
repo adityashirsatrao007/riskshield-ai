@@ -19,5 +19,5 @@ class Merchant(Base):
     is_active = Column(Boolean, default=True, index=True)
     rate_limit = Column(Integer, default=120)
     tier = Column(String(16), default="free", index=True)
-    created_at = Column(DateTime, default=_utcnow, index=True)
-    last_active = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow, index=True)
+    last_active = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
