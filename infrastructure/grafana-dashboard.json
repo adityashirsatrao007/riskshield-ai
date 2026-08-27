@@ -66,7 +66,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(increase(http_requests_total{job=\"riskshield-backend\", endpoint=\"/api/v1/transactions\"}[24h]))",
+          "expr": "sum(increase(riskshield_predictions_total{job=\"riskshield-backend\"}[24h]))",
           "legendFormat": "Transactions",
           "refId": "A"
         }
@@ -136,7 +136,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(fraud_predictions_total{label=\"fraud\"}[1h])) / sum(rate(fraud_predictions_total[1h])) * 100",
+          "expr": "sum(rate(riskshield_predictions_total{risk_level=\"high\"}[1h])) / sum(rate(riskshield_predictions_total[1h])) * 100",
           "legendFormat": "Fraud Rate",
           "refId": "A"
         }
@@ -213,7 +213,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "risk_score_distribution_bucket",
+          "expr": "riskshield_risk_score_bucket",
           "legendFormat": "Risk Score",
           "refId": "A",
           "format": "heatmap"
@@ -291,8 +291,8 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(fraud_predictions_total[5m])) by (label)",
-          "legendFormat": "{{label}}",
+          "expr": "sum(rate(riskshield_predictions_total[5m])) by (risk_level)",
+          "legendFormat": "{{risk_level}}",
           "refId": "A"
         }
       ]
@@ -373,7 +373,7 @@
           "sort": "none"
         }
       },
-      "title": "Model Drift",
+      "title": "Drift Detection & Latency",
       "type": "timeseries",
       "targets": [
         {
@@ -381,8 +381,8 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "model_drift_score",
-          "legendFormat": "{{metric}}",
+          "expr": "riskshield_drift_detected_total",
+          "legendFormat": "Drift Alerts",
           "refId": "A"
         },
         {
@@ -390,8 +390,8 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "model_prediction_entropy",
-          "legendFormat": "Prediction Entropy",
+          "expr": "riskshield_processing_time_ms",
+          "legendFormat": "Processing Time (ms)",
           "refId": "B"
         }
       ]
@@ -457,7 +457,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "topk(10, sum(fraud_predictions_total{label=\"fraud\"}) by (merchant_id))",
+          "expr": "topk(10, sum(riskshield_predictions_total{risk_level=\"high\"}) by (merchant_id))",
           "legendFormat": "{{merchant_id}}",
           "refId": "A",
           "instant": true
@@ -518,35 +518,17 @@
         "showHeader": true,
         "sortBy": []
       },
-      "title": "Alert Status",
-      "type": "table",
+      "title": "System Status",
+      "type": "stat",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "alerts_active",
-          "legendFormat": "{{alert_name}}",
-          "refId": "A",
-          "format": "table",
-          "instant": true
-        }
-      ],
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "__name__": true
-            },
-            "renameByName": {
-              "alert_name": "Alert",
-              "severity": "Severity",
-              "Value": "Count"
-            }
-          }
+          "expr": "riskshield_drift_detected_total",
+          "legendFormat": "Drift Alerts",
+          "refId": "A"
         }
       ]
     }
