@@ -1,4 +1,4 @@
-.PHONY: all train backend frontend docker clean
+.PHONY: all train backend frontend docker docker-prod dev clean lint test
 
 all: train
 
@@ -13,6 +13,23 @@ frontend:
 
 docker:
 	docker compose up --build
+
+docker-prod:
+	docker compose -f docker-compose.prod.yml --env-file .env up --build -d
+
+docker-down:
+	docker compose -f docker-compose.prod.yml down
+
+docker-logs:
+	docker compose -f docker-compose.prod.yml logs -f backend
+
+dev: backend
+
+lint:
+	cd backend && python -m ruff check app/
+
+test:
+	cd backend && python -m pytest tests/ -v --tb=short
 
 clean:
 	rm -rf ml/data/*.csv ml/models/*.joblib

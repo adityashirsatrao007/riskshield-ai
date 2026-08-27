@@ -77,6 +77,7 @@ async def verify_api_key(request: Request, db: AsyncSession = Depends(get_db)):
             return api_key
 
     if api_key == settings.RISKSHIELD_API_KEY:
+        logger.warning("Admin API key used for auth (not a registered merchant)")
         return api_key
 
     raise HTTPException(status_code=401, detail="Invalid API key")
@@ -102,6 +103,7 @@ async def require_admin(
             return m
 
     if api_key == settings.RISKSHIELD_API_KEY:
+        logger.warning("Admin API key used for merchant lookup")
         return None
 
     raise HTTPException(status_code=401, detail="Invalid API key")
