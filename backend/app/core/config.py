@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     MODEL_PATH: str = os.environ.get(
         "MODEL_PATH",
         os.path.join(
-            os.path.dirname(__file__), "..", "..", "..", "ml", "models", "fraud_detector.joblib"
+            os.path.dirname(__file__), "..", "..", "..", "ml", "models", "fraud_detector_v2.joblib"
         ),
     )
     API_PREFIX: str = "/api/v1"
