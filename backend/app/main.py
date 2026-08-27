@@ -296,7 +296,7 @@ async def create_merchant(
 
 
 static_dir = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "static"
+    os.path.dirname(os.path.dirname(__file__)), "static"
 )
 if os.path.isdir(static_dir):
     from fastapi.responses import FileResponse
