@@ -3,7 +3,16 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchTransactions } from "../lib/api";
 import { RiskBadge } from "../components/RiskBadge";
 import { format } from "date-fns";
-import { ChevronDown, ChevronUp, Search } from "lucide-react";
+import {
+  ChevronDown,
+  Search,
+  Filter,
+  CreditCard,
+  Globe,
+  Store,
+  Clock,
+} from "lucide-react";
+import { clsx } from "clsx";
 
 export default function TransactionList() {
   const [riskFilter, setRiskFilter] = useState("");
@@ -36,22 +45,29 @@ export default function TransactionList() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-white">Transactions</h2>
-        <p className="text-sm text-slate-400">
-          All scored transactions with risk analysis
-        </p>
+      <div className="animate-fade-in">
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 shadow-lg shadow-blue-500/20">
+            <Filter className="size-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-white">Transactions</h2>
+            <p className="text-sm text-slate-400">
+              All scored transactions with risk analysis
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
+      <div className="glass-card flex flex-wrap items-center gap-4 rounded-2xl p-4">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by ID or customer..."
-            className="w-full rounded-lg border border-slate-700 bg-slate-800 py-2 pl-10 pr-4 text-sm text-slate-200 placeholder-slate-500 focus:border-brand-500 focus:outline-none"
+            className="w-full rounded-xl border border-slate-700/50 bg-slate-800/50 py-2.5 pl-10 pr-4 text-sm text-slate-200 placeholder-slate-500 backdrop-blur-sm focus:border-indigo-500/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
           />
         </div>
         <select
@@ -60,7 +76,7 @@ export default function TransactionList() {
             setRiskFilter(e.target.value);
             setPage(0);
           }}
-          className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-brand-500 focus:outline-none"
+          className="rounded-xl border border-slate-700/50 bg-slate-800/50 px-4 py-2.5 text-sm text-slate-200 backdrop-blur-sm focus:border-indigo-500/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
         >
           <option value="">All Risk Levels</option>
           <option value="low">Low</option>
@@ -70,95 +86,156 @@ export default function TransactionList() {
         </select>
       </div>
 
-      <div className="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
+      <div className="glass-card overflow-hidden rounded-2xl">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-slate-800 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
-              <th className="px-4 py-3">Transaction</th>
-              <th className="px-4 py-3">Amount</th>
-              <th className="px-4 py-3">Customer</th>
-              <th className="px-4 py-3">Risk</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Time</th>
-              <th className="px-4 py-3 w-8"></th>
+            <tr className="border-b border-slate-800/50 text-left text-xs font-medium uppercase tracking-wider text-slate-400">
+              <th className="px-5 py-4">Transaction</th>
+              <th className="px-5 py-4">Amount</th>
+              <th className="px-5 py-4">Customer</th>
+              <th className="px-5 py-4">Risk</th>
+              <th className="px-5 py-4">Status</th>
+              <th className="px-5 py-4">Time</th>
+              <th className="w-8 px-5 py-4"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800">
+          <tbody className="divide-y divide-slate-800/50">
             {isLoading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">
-                  Loading...
+                <td
+                  colSpan={7}
+                  className="px-5 py-16 text-center text-sm text-slate-500"
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="size-4 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+                    Loading transactions...
+                  </div>
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">
+                <td
+                  colSpan={7}
+                  className="px-5 py-16 text-center text-sm text-slate-500"
+                >
                   No transactions found. Send some via the API to see them here.
                 </td>
               </tr>
             ) : (
-              filtered.map((txn) => (
+              filtered.map((txn, i) => (
                 <Fragment key={txn.id}>
                   <tr
-                    className="hover:bg-slate-800/50 cursor-pointer"
+                    className={clsx(
+                      "cursor-pointer transition-all duration-200 hover:bg-slate-800/30",
+                      expandedId === txn.id && "bg-slate-800/20"
+                    )}
+                    style={{ animationDelay: `${i * 30}ms` }}
                     onClick={() =>
                       setExpandedId(expandedId === txn.id ? null : txn.id)
                     }
                   >
-                    <td className="px-4 py-3 text-sm font-mono text-slate-200">
-                      {txn.transaction_id}
+                    <td className="px-5 py-4">
+                      <span className="font-mono text-sm text-slate-200">
+                        {txn.transaction_id}
+                      </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-200">
-                      ₹{txn.amount.toLocaleString()}
+                    <td className="px-5 py-4">
+                      <span className="text-sm font-semibold text-white">
+                        ₹{txn.amount.toLocaleString()}
+                      </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-400">
+                    <td className="px-5 py-4 text-sm text-slate-400">
                       {txn.customer_id}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-4">
                       <RiskBadge
                         level={txn.risk_level}
                         score={txn.risk_score}
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-4">
                       <span
-                        className={`text-xs font-medium ${
+                        className={clsx(
+                          "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
                           txn.is_flagged
-                            ? "text-red-400"
-                            : "text-emerald-400"
-                        }`}
+                            ? "bg-red-500/10 text-red-400"
+                            : "bg-emerald-500/10 text-emerald-400"
+                        )}
                       >
+                        <span
+                          className={clsx(
+                            "size-1.5 rounded-full",
+                            txn.is_flagged ? "bg-red-400" : "bg-emerald-400"
+                          )}
+                        />
                         {txn.is_flagged ? "Flagged" : "Clean"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-500">
+                    <td className="px-5 py-4 text-xs text-slate-500">
                       {format(new Date(txn.created_at), "MMM d, HH:mm")}
                     </td>
-                    <td className="px-4 py-3">
-                      {expandedId === txn.id ? (
-                        <ChevronUp className="size-4 text-slate-500" />
-                      ) : (
-                        <ChevronDown className="size-4 text-slate-500" />
-                      )}
+                    <td className="px-5 py-4">
+                      <ChevronDown
+                        className={clsx(
+                          "size-4 text-slate-500 transition-transform duration-200",
+                          expandedId === txn.id && "rotate-180"
+                        )}
+                      />
                     </td>
                   </tr>
                   {expandedId === txn.id && (
                     <tr>
-                      <td colSpan={7} className="bg-slate-800/30 px-8 py-4">
-                        <div className="grid grid-cols-3 gap-4 text-sm">
-                          <div>
-                            <span className="text-slate-500">Card Type</span>
-                            <p className="text-slate-200">{txn.card_type}</p>
+                      <td
+                        colSpan={7}
+                        className="border-t border-slate-800/30 bg-slate-800/10 px-8 py-5"
+                      >
+                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                          <div className="flex items-center gap-3 rounded-xl bg-slate-800/30 p-3">
+                            <CreditCard className="size-8 text-slate-600" />
+                            <div>
+                              <p className="text-[11px] text-slate-500">
+                                Card Type
+                              </p>
+                              <p className="text-sm font-medium text-slate-200">
+                                {txn.card_type}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <span className="text-slate-500">International</span>
-                            <p className="text-slate-200">
-                              {txn.is_international ? "Yes" : "No"}
-                            </p>
+                          <div className="flex items-center gap-3 rounded-xl bg-slate-800/30 p-3">
+                            <Globe className="size-8 text-slate-600" />
+                            <div>
+                              <p className="text-[11px] text-slate-500">
+                                International
+                              </p>
+                              <p className="text-sm font-medium text-slate-200">
+                                {txn.is_international ? "Yes" : "No"}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <span className="text-slate-500">Merchant</span>
-                            <p className="text-slate-200">{txn.merchant_id}</p>
+                          <div className="flex items-center gap-3 rounded-xl bg-slate-800/30 p-3">
+                            <Store className="size-8 text-slate-600" />
+                            <div>
+                              <p className="text-[11px] text-slate-500">
+                                Merchant
+                              </p>
+                              <p className="text-sm font-medium text-slate-200">
+                                {txn.merchant_id}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 rounded-xl bg-slate-800/30 p-3">
+                            <Clock className="size-8 text-slate-600" />
+                            <div>
+                              <p className="text-[11px] text-slate-500">
+                                Created
+                              </p>
+                              <p className="text-sm font-medium text-slate-200">
+                                {format(
+                                  new Date(txn.created_at),
+                                  "MMM d, HH:mm"
+                                )}
+                              </p>
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -172,7 +249,7 @@ export default function TransactionList() {
       </div>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between">
+        <div className="glass-card flex items-center justify-between rounded-2xl px-5 py-4">
           <p className="text-sm text-slate-400">
             Showing {page * limit + 1}–
             {Math.min((page + 1) * limit, total)} of {total}
@@ -181,14 +258,14 @@ export default function TransactionList() {
             <button
               onClick={() => setPage(Math.max(0, page - 1))}
               disabled={page === 0}
-              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-700 disabled:opacity-50"
+              className="rounded-xl border border-slate-700/50 bg-slate-800/50 px-4 py-2 text-sm text-slate-300 backdrop-blur-sm transition-all hover:bg-slate-700/50 disabled:opacity-40"
             >
               Prev
             </button>
             <button
               onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
               disabled={page >= totalPages - 1}
-              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-700 disabled:opacity-50"
+              className="rounded-xl border border-slate-700/50 bg-slate-800/50 px-4 py-2 text-sm text-slate-300 backdrop-blur-sm transition-all hover:bg-slate-700/50 disabled:opacity-40"
             >
               Next
             </button>

@@ -2,17 +2,24 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchAlerts, updateAlertStatus, fetchAlertStats } from "../lib/api";
 import { RiskBadge } from "../components/RiskBadge";
-import { useToast } from "../components/Toast";
 import { format } from "date-fns";
-import { Bell, CheckCircle, XCircle, Eye } from "lucide-react";
+import {
+  Bell,
+  Eye,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  Shield,
+  Filter,
+} from "lucide-react";
+import { clsx } from "clsx";
 
 export default function AlertCenter() {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState("");
   const [riskFilter, setRiskFilter] = useState("");
 
-  const { data: alerts, isLoading } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["alerts", statusFilter, riskFilter],
     queryFn: () =>
       fetchAlerts({
@@ -33,51 +40,58 @@ export default function AlertCenter() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
       queryClient.invalidateQueries({ queryKey: ["alert-stats"] });
-      toast("Alert updated", "success");
-    },
-    onError: (error: Error) => {
-      toast(`Failed to update alert: ${error.message}`, "error");
     },
   });
 
-  const alertList = alerts?.data || [];
-
-  const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-  const sorted = [...alertList].sort(
+  const alerts = data?.data || [];
+  const sorted = [...alerts].sort(
     (a, b) =>
-      (priorityOrder[a.risk_level] ?? 4) - (priorityOrder[b.risk_level] ?? 4)
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-white">Alert Center</h2>
-        <p className="text-sm text-slate-400">
-          Review and manage fraud alerts
-        </p>
+      <div className="animate-fade-in">
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 shadow-lg shadow-amber-500/20">
+            <AlertTriangle className="size-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-white">Alert Center</h2>
+            <p className="text-sm text-slate-400">
+              Manage and respond to fraud alerts
+            </p>
+          </div>
+        </div>
       </div>
 
       {stats && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {["open", "acknowledged", "dismissed", "resolved"].map((s) => (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {["open", "acknowledged", "dismissed", "resolved"].map((status) => (
             <div
-              key={s}
-              className="rounded-lg border border-slate-800 bg-slate-900/50 p-4 text-center"
+              key={status}
+              className="glass-card rounded-xl p-4 text-center transition-all hover:scale-[1.02]"
             >
               <p className="text-2xl font-bold text-white">
-                {stats.by_status[s] || 0}
+                {stats.by_status?.[status] || 0}
               </p>
-              <p className="text-xs text-slate-400 capitalize">{s}</p>
+              <p className="mt-1 text-xs capitalize text-slate-400">
+                {status}
+              </p>
             </div>
           ))}
         </div>
       )}
 
-      <div className="flex gap-4">
+      <div className="glass-card flex flex-wrap items-center gap-4 rounded-2xl p-4">
+        <div className="flex items-center gap-2 text-sm text-slate-400">
+          <Filter className="size-4" />
+          Filters
+        </div>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-brand-500 focus:outline-none"
+          className="rounded-xl border border-slate-700/50 bg-slate-800/50 px-4 py-2.5 text-sm text-slate-200 backdrop-blur-sm focus:border-indigo-500/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
         >
           <option value="">All Statuses</option>
           <option value="open">Open</option>
@@ -88,7 +102,7 @@ export default function AlertCenter() {
         <select
           value={riskFilter}
           onChange={(e) => setRiskFilter(e.target.value)}
-          className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-brand-500 focus:outline-none"
+          className="rounded-xl border border-slate-700/50 bg-slate-800/50 px-4 py-2.5 text-sm text-slate-200 backdrop-blur-sm focus:border-indigo-500/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
         >
           <option value="">All Risk Levels</option>
           <option value="critical">Critical</option>
@@ -99,33 +113,42 @@ export default function AlertCenter() {
       </div>
 
       {isLoading ? (
-        <div className="text-center py-12 text-sm text-slate-500">Loading...</div>
+        <div className="flex items-center justify-center py-16">
+          <div className="flex items-center gap-3 text-sm text-slate-400">
+            <div className="size-4 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+            Loading alerts...
+          </div>
+        </div>
       ) : sorted.length === 0 ? (
-        <div className="text-center py-12 text-sm text-slate-500">
-          No alerts found. All clear!
+        <div className="glass-card rounded-2xl py-16 text-center">
+          <Shield className="mx-auto mb-3 size-12 text-slate-700" />
+          <p className="text-sm text-slate-500">No alerts found. All clear!</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {sorted.map((alert) => (
+        <div className="space-y-3">
+          {sorted.map((alert, i) => (
             <div
               key={alert.id}
-              className="rounded-xl border border-slate-800 bg-slate-900/50 p-5"
+              className="glass-card animate-slide-up group rounded-2xl p-5 transition-all duration-200 hover:bg-slate-800/30"
+              style={{ animationDelay: `${i * 40}ms` }}
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-4">
                   <div
-                    className={`mt-1 rounded-lg p-2 ${
+                    className={clsx(
+                      "mt-1 flex size-10 items-center justify-center rounded-xl",
                       alert.risk_level === "critical"
-                        ? "bg-red-500/15"
+                        ? "bg-red-500/15 shadow-lg shadow-red-500/10"
                         : alert.risk_level === "high"
-                        ? "bg-orange-500/15"
+                        ? "bg-orange-500/15 shadow-lg shadow-orange-500/10"
                         : alert.risk_level === "medium"
-                        ? "bg-amber-500/15"
-                        : "bg-emerald-500/15"
-                    }`}
+                        ? "bg-amber-500/15 shadow-lg shadow-amber-500/10"
+                        : "bg-emerald-500/15 shadow-lg shadow-emerald-500/10"
+                    )}
                   >
                     <Bell
-                      className={`size-5 ${
+                      className={clsx(
+                        "size-5",
                         alert.risk_level === "critical"
                           ? "text-red-400"
                           : alert.risk_level === "high"
@@ -133,7 +156,7 @@ export default function AlertCenter() {
                           : alert.risk_level === "medium"
                           ? "text-amber-400"
                           : "text-emerald-400"
-                      }`}
+                      )}
                     />
                   </div>
                   <div>
@@ -150,13 +173,15 @@ export default function AlertCenter() {
                       </span>
                     </div>
                     <div className="mt-3 space-y-1.5">
-                      {alert.explanation?.map((exp, i) => (
-                        <p key={i} className="text-sm text-slate-300">
+                      {alert.explanation?.map((exp, j) => (
+                        <p key={j} className="text-sm text-slate-300">
                           <span className="font-medium text-slate-200">
                             {exp.feature}
+                          </span>{" "}
+                          = {exp.value}{" "}
+                          <span className="text-slate-500">
+                            (importance: {exp.importance})
                           </span>
-                          {" = "}
-                          {exp.value} (importance: {exp.importance})
                         </p>
                       ))}
                     </div>
@@ -172,25 +197,31 @@ export default function AlertCenter() {
                             status: "acknowledged",
                           })
                         }
-                        className="rounded-lg bg-brand-600/15 px-3 py-1.5 text-xs font-medium text-brand-400 hover:bg-brand-600/25"
+                        className="rounded-xl bg-indigo-500/10 px-3 py-1.5 text-xs font-medium text-indigo-400 transition-all hover:bg-indigo-500/20"
                       >
                         <Eye className="mr-1 inline size-3" />
                         Acknowledge
                       </button>
                       <button
                         onClick={() =>
-                          mutation.mutate({ id: alert.id, status: "resolved" })
+                          mutation.mutate({
+                            id: alert.id,
+                            status: "resolved",
+                          })
                         }
-                        className="rounded-lg bg-emerald-600/15 px-3 py-1.5 text-xs font-medium text-emerald-400 hover:bg-emerald-600/25"
+                        className="rounded-xl bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-400 transition-all hover:bg-emerald-500/20"
                       >
                         <CheckCircle className="mr-1 inline size-3" />
                         Resolve
                       </button>
                       <button
                         onClick={() =>
-                          mutation.mutate({ id: alert.id, status: "dismissed" })
+                          mutation.mutate({
+                            id: alert.id,
+                            status: "dismissed",
+                          })
                         }
-                        className="rounded-lg bg-slate-600/15 px-3 py-1.5 text-xs font-medium text-slate-400 hover:bg-slate-600/25"
+                        className="rounded-xl bg-slate-500/10 px-3 py-1.5 text-xs font-medium text-slate-400 transition-all hover:bg-slate-500/20"
                       >
                         <XCircle className="mr-1 inline size-3" />
                         Dismiss
@@ -198,7 +229,7 @@ export default function AlertCenter() {
                     </>
                   )}
                   {alert.status !== "open" && (
-                    <span className="text-xs text-slate-500 capitalize px-2 py-1">
+                    <span className="rounded-full bg-slate-500/10 px-3 py-1 text-xs font-medium text-slate-400 capitalize">
                       {alert.status}
                     </span>
                   )}
