@@ -1,5 +1,9 @@
 # RiskShield AI
 
+[![CI](https://github.com/adityashirsatrao007/riskshield-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/adityashirsatrao007/riskshield-ai/actions/workflows/ci.yml)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://python.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 **Track 2 — AI Risk Manager** | Razorpay AI Buildathon 2026
 
 > Real-time payment fraud detection for merchants. Detects high-risk transactions with measured precision, recall, and false-positive cost analysis. Strictly defense-only.

@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.api.alerts import router as alert_router
@@ -195,7 +195,7 @@ async def health():
 
 @app.get("/metrics")
 async def metrics():
-    return JSONResponse(
+    return Response(
         content=generate_latest().decode("utf-8"),
         media_type=CONTENT_TYPE_LATEST,
     )
@@ -311,6 +311,8 @@ if os.path.isdir(static_dir):
 
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
+        if full_path.startswith(("api/", "health", "metrics", "docs", "openapi", "redoc")):
+            return JSONResponse(status_code=404, detail="Not found")
         file_path = os.path.realpath(os.path.join(static_dir, full_path))
         static_real = os.path.realpath(static_dir)
         if not file_path.startswith(static_real + os.sep) and file_path != static_real:
