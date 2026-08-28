@@ -26,11 +26,11 @@ const COLORS = ["#10b981", "#f59e0b", "#f97316", "#ef4444"];
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="glass-card rounded-xl border border-slate-700/50 px-4 py-3 shadow-2xl">
-        <p className="mb-1 text-xs font-medium text-slate-300">{label}</p>
+      <div className="glass-card rounded-xl border border-slate-700/30 px-4 py-3 shadow-2xl">
+        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{label}</p>
         {payload.map((entry: any, i: number) => (
-          <p key={i} className="text-xs" style={{ color: entry.color }}>
-            {entry.name}: <span className="font-semibold">{entry.value}</span>
+          <p key={i} className="text-[13px]" style={{ color: entry.color }}>
+            {entry.name}: <span className="font-bold tabular-nums">{entry.value.toLocaleString("en-IN")}</span>
           </p>
         ))}
       </div>
@@ -68,13 +68,13 @@ export default function Analytics() {
   return (
     <div className="space-y-6">
       <div className="animate-fade-in">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg shadow-purple-500/20">
-            <BarChart3 className="size-5 text-white" />
+        <div className="flex items-center gap-4">
+          <div className="flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-xl shadow-purple-500/20">
+            <BarChart3 className="size-6 text-white" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-white">Analytics</h2>
-            <p className="text-sm text-slate-400">
+            <h2 className="text-[26px] font-bold tracking-tight text-white leading-tight">Analytics</h2>
+            <p className="mt-0.5 text-[13px] text-slate-400 font-medium">
               Deep dive into fraud patterns and model performance
             </p>
           </div>
@@ -83,7 +83,7 @@ export default function Analytics() {
 
       {isLoading && (
         <div className="flex items-center justify-center py-16">
-          <div className="flex items-center gap-3 text-sm text-slate-400">
+          <div className="flex items-center gap-3 text-[13px] text-slate-400">
             <div className="size-4 animate-spin rounded-full border-2 border-purple-500 border-t-transparent" />
             Loading analytics...
           </div>
@@ -91,126 +91,81 @@ export default function Analytics() {
       )}
 
       {fpAnalysis && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="gradient-border glow-emerald rounded-2xl p-5 transition-all hover:scale-[1.02]">
-            <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 shadow-lg">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="gradient-border glow-emerald rounded-2xl p-6">
+            <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 shadow-lg shadow-black/20">
               <IndianRupee className="size-5 text-white" />
             </div>
-            <p className="text-2xl font-bold text-white">
-              ₹{fpAnalysis.estimated_savings.toLocaleString()}
+            <p className="text-[28px] font-bold text-white tabular-nums">
+              ₹{fpAnalysis.estimated_savings.toLocaleString("en-IN")}
             </p>
-            <p className="mt-1 text-sm text-slate-400">Fraud Prevented</p>
+            <p className="mt-1.5 text-[12px] font-semibold uppercase tracking-wider text-slate-400">Fraud Prevented</p>
           </div>
-          <div className="gradient-border glow-amber rounded-2xl p-5 transition-all hover:scale-[1.02]">
-            <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 shadow-lg">
+          <div className="gradient-border glow-amber rounded-2xl p-6">
+            <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 shadow-lg shadow-black/20">
               <IndianRupee className="size-5 text-white" />
             </div>
-            <p className="text-2xl font-bold text-amber-400">
-              ₹{fpAnalysis.estimated_fp_cost.toLocaleString()}
+            <p className="text-[28px] font-bold text-amber-400 tabular-nums">
+              ₹{fpAnalysis.estimated_fp_cost.toLocaleString("en-IN")}
             </p>
-            <p className="mt-1 text-sm text-slate-400">
-              False Positive Cost
-            </p>
+            <p className="mt-1.5 text-[12px] font-semibold uppercase tracking-wider text-slate-400">False Positive Cost</p>
           </div>
-          <div className="gradient-border glow-purple rounded-2xl p-5 transition-all hover:scale-[1.02]">
-            <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg">
+          <div className="gradient-border glow-purple rounded-2xl p-6">
+            <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg shadow-black/20">
               <TrendingUp className="size-5 text-white" />
             </div>
-            <p
-              className={`text-2xl font-bold ${
-                fpAnalysis.net_benefit >= 0
-                  ? "text-emerald-400"
-                  : "text-red-400"
-              }`}
-            >
-              ₹{fpAnalysis.net_benefit.toLocaleString()}
+            <p className={`text-[28px] font-bold tabular-nums ${fpAnalysis.net_benefit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              ₹{fpAnalysis.net_benefit.toLocaleString("en-IN")}
             </p>
-            <p className="mt-1 text-sm text-slate-400">Net Benefit</p>
+            <p className="mt-1.5 text-[12px] font-semibold uppercase tracking-wider text-slate-400">Net Benefit</p>
           </div>
-          <div className="gradient-border glow-blue rounded-2xl p-5 transition-all hover:scale-[1.02]">
-            <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-blue-500 shadow-lg">
+          <div className="gradient-border glow-blue rounded-2xl p-6">
+            <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-blue-500 shadow-lg shadow-black/20">
               <BarChart3 className="size-5 text-white" />
             </div>
-            <p className="text-2xl font-bold text-brand-400">
-              {fpAnalysis.total_flagged}
+            <p className="text-[28px] font-bold text-indigo-400 tabular-nums">
+              {fpAnalysis.total_flagged.toLocaleString("en-IN")}
             </p>
-            <p className="mt-1 text-sm text-slate-400">Total Flagged</p>
+            <p className="mt-1.5 text-[12px] font-semibold uppercase tracking-wider text-slate-400">Total Flagged</p>
           </div>
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="glass-card animate-slide-up rounded-2xl p-6" style={{ animationDelay: "100ms" }}>
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-200">
-              Fraud Rate Over Time
-            </h3>
-            <span className="rounded-full bg-purple-500/10 px-2.5 py-0.5 text-[11px] font-medium text-purple-400">
-              30 days
-            </span>
+          <div className="mb-5 flex items-center justify-between">
+            <h3 className="text-[14px] font-semibold text-slate-200 tracking-tight">Fraud Rate Over Time</h3>
+            <span className="rounded-full bg-purple-500/10 px-3 py-1 text-[11px] font-semibold tracking-wide text-purple-400">30 days</span>
           </div>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={timeline || []}>
               <defs>
                 <linearGradient id="gradPurple" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#a78bfa" stopOpacity={0.3} />
+                  <stop offset="0%" stopColor="#a78bfa" stopOpacity={0.25} />
                   <stop offset="100%" stopColor="#a78bfa" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(51, 65, 85, 0.3)" />
-              <XAxis
-                dataKey="date"
-                stroke="#475569"
-                fontSize={11}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(v) => format(new Date(v), "MMM d")}
-              />
-              <YAxis stroke="#475569" fontSize={11} tickLine={false} axisLine={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(51, 65, 85, 0.2)" />
+              <XAxis dataKey="date" stroke="#475569" fontSize={11} fontWeight={500} tickLine={false} axisLine={false} tickFormatter={(v) => format(new Date(v), "MMM d")} />
+              <YAxis stroke="#475569" fontSize={11} fontWeight={500} tickLine={false} axisLine={false} />
               <Tooltip content={<CustomTooltip />} />
-              <Line
-                type="monotone"
-                dataKey="avg_score"
-                stroke="#a78bfa"
-                strokeWidth={2.5}
-                name="Avg Risk Score"
-                dot={false}
-                activeDot={{ r: 5, fill: "#a78bfa", stroke: "#030712", strokeWidth: 2 }}
-              />
-              <Line
-                type="monotone"
-                dataKey="flagged"
-                stroke="#ef4444"
-                strokeWidth={2.5}
-                name="Flagged"
-                dot={false}
-                activeDot={{ r: 5, fill: "#ef4444", stroke: "#030712", strokeWidth: 2 }}
-              />
+              <Line type="monotone" dataKey="avg_score" stroke="#a78bfa" strokeWidth={2.5} name="Avg Risk Score" dot={false} activeDot={{ r: 5, fill: "#a78bfa", stroke: "#030712", strokeWidth: 2.5 }} />
+              <Line type="monotone" dataKey="flagged" stroke="#ef4444" strokeWidth={2.5} name="Flagged" dot={false} activeDot={{ r: 5, fill: "#ef4444", stroke: "#030712", strokeWidth: 2.5 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
 
         <div className="glass-card animate-slide-up rounded-2xl p-6" style={{ animationDelay: "200ms" }}>
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-200">
-              Risk Level Distribution
-            </h3>
-            <span className="rounded-full bg-pink-500/10 px-2.5 py-0.5 text-[11px] font-medium text-pink-400">
+          <div className="mb-5 flex items-center justify-between">
+            <h3 className="text-[14px] font-semibold text-slate-200 tracking-tight">Risk Level Distribution</h3>
+            <span className="rounded-full bg-pink-500/10 px-3 py-1 text-[11px] font-semibold tracking-wide text-pink-400 flex items-center gap-1.5">
+              <span className="size-1.5 rounded-full bg-pink-400 animate-pulse-slow" />
               Live
             </span>
           </div>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
-              <Pie
-                data={distData}
-                cx="50%"
-                cy="50%"
-                innerRadius={70}
-                outerRadius={110}
-                paddingAngle={4}
-                dataKey="value"
-                stroke="none"
-              >
+              <Pie data={distData} cx="50%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={4} dataKey="value" stroke="none">
                 {distData.map((entry, i) => (
                   <Cell key={i} fill={entry.color} />
                 ))}
@@ -218,14 +173,11 @@ export default function Analytics() {
               <Tooltip content={<CustomTooltip />} />
             </PieChart>
           </ResponsiveContainer>
-          <div className="mt-2 flex justify-center gap-4">
+          <div className="mt-2 flex justify-center gap-5">
             {distData.map((d) => (
-              <div key={d.name} className="flex items-center gap-1.5 text-xs">
-                <span
-                  className="size-2 rounded-full shadow-lg"
-                  style={{ backgroundColor: d.color }}
-                />
-                <span className="text-slate-400">{d.name}</span>
+              <div key={d.name} className="flex items-center gap-2 text-[12px]">
+                <span className="size-2.5 rounded-full shadow-lg" style={{ backgroundColor: d.color }} />
+                <span className="text-slate-400 font-medium">{d.name}</span>
               </div>
             ))}
           </div>
@@ -233,49 +185,28 @@ export default function Analytics() {
       </div>
 
       <div className="glass-card animate-slide-up rounded-2xl p-6" style={{ animationDelay: "300ms" }}>
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-200">
-            Transaction Volume by Day
-          </h3>
-          <span className="rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[11px] font-medium text-blue-400">
-            Daily
-          </span>
+        <div className="mb-5 flex items-center justify-between">
+          <h3 className="text-[14px] font-semibold text-slate-200 tracking-tight">Transaction Volume by Day</h3>
+          <span className="rounded-full bg-blue-500/10 px-3 py-1 text-[11px] font-semibold tracking-wide text-blue-400">Daily</span>
         </div>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={timeline || []}>
             <defs>
               <linearGradient id="gradBlue" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#818cf8" stopOpacity={0.9} />
-                <stop offset="100%" stopColor="#6366f1" stopOpacity={0.6} />
+                <stop offset="100%" stopColor="#6366f1" stopOpacity={0.5} />
               </linearGradient>
               <linearGradient id="gradRed" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#f87171" stopOpacity={0.9} />
-                <stop offset="100%" stopColor="#ef4444" stopOpacity={0.6} />
+                <stop offset="100%" stopColor="#ef4444" stopOpacity={0.5} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(51, 65, 85, 0.3)" />
-            <XAxis
-              dataKey="date"
-              stroke="#475569"
-              fontSize={11}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(v) => format(new Date(v), "MMM d")}
-            />
-            <YAxis stroke="#475569" fontSize={11} tickLine={false} axisLine={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(51, 65, 85, 0.2)" />
+            <XAxis dataKey="date" stroke="#475569" fontSize={11} fontWeight={500} tickLine={false} axisLine={false} tickFormatter={(v) => format(new Date(v), "MMM d")} />
+            <YAxis stroke="#475569" fontSize={11} fontWeight={500} tickLine={false} axisLine={false} />
             <Tooltip content={<CustomTooltip />} />
-            <Bar
-              dataKey="total"
-              fill="url(#gradBlue)"
-              radius={[6, 6, 0, 0]}
-              name="Total"
-            />
-            <Bar
-              dataKey="flagged"
-              fill="url(#gradRed)"
-              radius={[6, 6, 0, 0]}
-              name="Flagged"
-            />
+            <Bar dataKey="total" fill="url(#gradBlue)" radius={[8, 8, 0, 0]} name="Total" />
+            <Bar dataKey="flagged" fill="url(#gradRed)" radius={[8, 8, 0, 0]} name="Flagged" />
           </BarChart>
         </ResponsiveContainer>
       </div>

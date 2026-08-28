@@ -95,6 +95,8 @@ async def handle_razorpay_webhook(
 async def _handle_payment_captured(payload: dict):
     from datetime import datetime, timezone
     from app.services import risk_engine
+    from app.core.database import async_session
+    from app.models.transaction import Transaction, Alert, AuditTrail
 
     payment = payload.get("payment", {}).get("entity", {})
     amount = payment.get("amount", 0) / 100
@@ -106,12 +108,15 @@ async def _handle_payment_captured(payload: dict):
         payment_id, order_id, amount,
     )
 
+    merchant_id = payment.get("notes", {}).get("merchant_id", "demo_merchant")
+    customer_id = payment.get("notes", {}).get("customer_id", "demo_customer")
+
     txn_data = {
         "transaction_id": payment_id or order_id,
         "amount": amount,
         "currency": payment.get("currency", "INR"),
-        "merchant_id": payment.get("notes", {}).get("merchant_id", "unknown"),
-        "customer_id": payment.get("notes", {}).get("customer_id", "unknown"),
+        "merchant_id": merchant_id,
+        "customer_id": customer_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -121,6 +126,58 @@ async def _handle_payment_captured(payload: dict):
             "Auto-scored payment %s: risk=%.4f level=%s flagged=%s",
             payment_id, result["risk_score"], result["risk_level"], result["is_flagged"],
         )
+
+        try:
+            async with async_session() as db:
+                db_txn = Transaction(
+                    transaction_id=payment_id or order_id,
+                    amount=amount,
+                    currency=payment.get("currency", "INR"),
+                    merchant_id=merchant_id,
+                    customer_id=customer_id,
+                    timestamp=datetime.now(timezone.utc),
+                    card_type="card",
+                    risk_score=result["risk_score"],
+                    risk_level=result["risk_level"],
+                    is_flagged=result["is_flagged"],
+                )
+                db.add(db_txn)
+                await db.flush()
+
+                audit = AuditTrail(
+                    transaction_id=db_txn.id,
+                    action="webhook_score",
+                    details={
+                        "payment_id": payment_id,
+                        "order_id": order_id,
+                        "source": "razorpay_webhook",
+                        "explanations": result["explanations"],
+                    },
+                    model_version=result["model_version"],
+                    processing_time_ms=result["processing_time_ms"],
+                )
+                db.add(audit)
+
+                if result["is_flagged"]:
+                    alert = Alert(
+                        transaction_id=db_txn.id,
+                        risk_score=result["risk_score"],
+                        risk_level=result["risk_level"],
+                        explanation=result["explanations"],
+                        status="open",
+                    )
+                    db.add(alert)
+
+                await db.commit()
+                logger.info("Payment %s persisted to DB (risk=%.4f)", payment_id, result["risk_score"])
+        except Exception as e:
+            logger.error("Failed to persist webhook payment: %s", e)
+
+        from app.services.monitoring import PREDICTIONS_TOTAL, FRAUD_DETECTED_TOTAL, PROCESSING_TIME
+        PREDICTIONS_TOTAL.labels(merchant_id=merchant_id, risk_level=result["risk_level"]).inc()
+        if result["is_flagged"]:
+            FRAUD_DETECTED_TOTAL.labels(merchant_id=merchant_id).inc()
+        PROCESSING_TIME.observe(result["processing_time_ms"] / 1000.0)
 
 
 async def _handle_payment_failed(payload: dict):

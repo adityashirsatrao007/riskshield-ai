@@ -47,8 +47,7 @@ def _run_scoring_sync(txn: TransactionCreate, ts: datetime, merchant_id: str) ->
     result = risk_engine.score_transaction(txn_dict)
 
     try:
-        logger_inst = _get_prediction_logger()
-        logger_inst.log(
+        _get_prediction_logger().log(
             transaction_id=txn.transaction_id,
             merchant_id=merchant_id,
             risk_score=result["risk_score"],
@@ -57,11 +56,6 @@ def _run_scoring_sync(txn: TransactionCreate, ts: datetime, merchant_id: str) ->
             processing_time_ms=result["processing_time_ms"],
             features_used=result.get("features_used", []),
         )
-        metrics = _get_metrics_collector()
-        metrics._predictions_counter.inc()
-        if result["is_flagged"]:
-            metrics._flagged_counter.inc()
-        metrics._prediction_latency.observe(result["processing_time_ms"] / 1000.0)
     except Exception as e:
         logger.warning("Failed to log prediction metrics: %s", e)
 

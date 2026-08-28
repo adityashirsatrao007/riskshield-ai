@@ -12,8 +12,8 @@ function AnimatedNumber({ value, suffix }: { value: string | number; suffix?: st
       setDisplay(String(value));
       return;
     }
-    const duration = 800;
-    const steps = 30;
+    const duration = 900;
+    const steps = 40;
     const increment = num / steps;
     let current = 0;
     let step = 0;
@@ -26,7 +26,7 @@ function AnimatedNumber({ value, suffix }: { value: string | number; suffix?: st
       }
       setDisplay(
         num >= 1000
-          ? Math.round(current).toLocaleString()
+          ? Math.round(current).toLocaleString("en-IN")
           : num % 1 !== 0
           ? current.toFixed(1)
           : String(Math.round(current))
@@ -36,11 +36,11 @@ function AnimatedNumber({ value, suffix }: { value: string | number; suffix?: st
   }, [num]);
 
   return (
-    <span>
+    <span className="tabular-nums">
       {prefix}
       {display}
       {suffix && (
-        <span className="ml-1 text-sm font-normal text-slate-400">{suffix}</span>
+        <span className="ml-1.5 text-sm font-medium text-slate-400/80">{suffix}</span>
       )}
     </span>
   );
@@ -77,17 +77,27 @@ export function StatCard({
     purple: "from-purple-500 to-pink-500",
   };
 
+  const bgGlow = {
+    indigo: "bg-indigo-500/[0.03]",
+    emerald: "bg-emerald-500/[0.03]",
+    amber: "bg-amber-500/[0.03]",
+    red: "bg-red-500/[0.03]",
+    purple: "bg-purple-500/[0.03]",
+  };
+
   return (
     <div
       className={clsx(
-        "gradient-border group rounded-2xl p-5 transition-all duration-300 hover:scale-[1.02]",
+        "gradient-border group relative overflow-hidden rounded-2xl p-6",
         glowMap[color]
       )}
     >
-      <div className="flex items-center justify-between">
+      <div className={clsx("absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100", bgGlow[color])} />
+
+      <div className="relative flex items-start justify-between">
         <div
           className={clsx(
-            "flex size-10 items-center justify-center rounded-xl bg-gradient-to-br shadow-lg",
+            "flex size-11 items-center justify-center rounded-xl bg-gradient-to-br shadow-lg shadow-black/20",
             gradientMap[color]
           )}
         >
@@ -96,7 +106,7 @@ export function StatCard({
         {trend !== undefined && (
           <div
             className={clsx(
-              "flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+              "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide",
               trend > 0 && "bg-emerald-500/10 text-emerald-400",
               trend < 0 && "bg-red-500/10 text-red-400",
               trend === 0 && "bg-slate-500/10 text-slate-400"
@@ -113,11 +123,12 @@ export function StatCard({
           </div>
         )}
       </div>
-      <div className="mt-4">
-        <p className="text-2xl font-bold text-white">
+
+      <div className="relative mt-5">
+        <p className="text-[28px] font-bold tracking-tight text-white leading-none">
           <AnimatedNumber value={value} suffix={suffix} />
         </p>
-        <p className="mt-1 text-sm text-slate-400">{label}</p>
+        <p className="mt-2 text-[13px] font-medium text-slate-400/80 tracking-wide uppercase">{label}</p>
       </div>
     </div>
   );

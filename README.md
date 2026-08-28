@@ -6,39 +6,62 @@
 
 **Track 2 — AI Risk Manager** | Razorpay AI Buildathon 2026
 
-> Real-time payment fraud detection for merchants. Detects high-risk transactions with measured precision, recall, and false-positive cost analysis. Strictly defense-only.
+> Real-time payment fraud detection for merchants. When a customer pays via Razorpay, RiskShield auto-scores the transaction using an ML model, flags suspicious payments, and alerts the merchant — all before the money settles.
+
+## Live Demo Flow
+
+```
+Customer pays ₹499 → Razorpay checkout → Webhook fires → RiskShield scores → Alert if fraud
+```
+
+1. Customer opens the [Demo Page](http://localhost:3000/demo.html) and pays via Razorpay
+2. Razorpay sends a `payment.captured` webhook to RiskShield
+3. RiskShield's ML model scores the transaction in real-time
+4. If flagged → alert created, merchant notified
+5. Everything visible on the [Dashboard](http://localhost:3000) and [Grafana](http://localhost:3001)
 
 ## Architecture
 
 ```
+                         Razorpay Checkout
+                              │
+                              ▼
 ┌──────────────┐     ┌──────────────┐     ┌──────────────────┐
 │   Frontend   │────▶│   Backend    │────▶│   ML Model       │
 │  React/Vite  │     │   FastAPI    │     │  RandomForest    │
-│  Port 3000   │     │  Port 8000   │     │  Classifier      │
-└──────────────┘     └──────┬───────┘     │  34 features     │
-                           │              │  sklearn 1.5.2   │
-                    ┌──────▼───────┐      └──────────────────┘
-                    │  PostgreSQL  │
-                    │  (SQLite dev)│
-                    └──────┬───────┘
-                           │
-              ┌────────────┼────────────┐
-              ▼            ▼            ▼
-         ┌────────┐  ┌──────────┐  ┌──────────┐
-         │ Redis  │  │ Grafana  │  │ Prometheus│
-         │ Cache  │  │Dashboard │  │ Metrics  │
-         └────────┘  └──────────┘  └──────────┘
+│  Port 3000   │     │  Port 8000   │     │  34 features     │
+│              │     │              │     │  0.982 AUC-ROC   │
+│  Demo Page   │     │  Webhooks    │     └──────────────────┘
+│  /demo.html  │     │  Scoring     │
+└──────────────┘     └──────┬───────┘
+                            │
+              ┌─────────────┼─────────────┐
+              ▼             ▼             ▼
+        ┌──────────┐  ┌──────────┐  ┌──────────┐
+        │PostgreSQL│  │  Redis   │  │  Kafka   │
+        │  Port    │  │  Port    │  │  Port    │
+        │  5432    │  │  6380    │  │  9092    │
+        └──────────┘  └──────────┘  └──────────┘
+              │
+     ┌────────┼────────────┐
+     ▼        ▼            ▼
+┌────────┐ ┌──────────┐ ┌──────────┐
+│Grafana │ │Prometheus│ │ MLflow   │
+│Port    │ │Port      │ │Port      │
+│3001    │ │9090      │ │5000      │
+└────────┘ └──────────┘ └──────────┘
 ```
 
 ### How It Works
 
-1. Merchant sends transaction data via REST API
+1. Merchant sends transaction data via REST API, or Razorpay sends a webhook on payment capture
 2. Risk engine extracts 34 features from transaction payload
 3. RandomForest model computes fraud probability (0–1)
-4. Risk level assigned: low (<0.3), medium (0.3–0.6), high (0.6–0.8), critical (≥0.8)
+4. Risk level assigned: low (<0.3), medium (0.3–0.6), high (0.6–0.8), critical (≥0.86)
 5. High-risk transactions automatically generate alerts
 6. Top-5 feature importances provided as explainability (XAI)
 7. Dashboard shows real-time monitoring, alerts, and analytics
+8. Grafana panels visualize predictions, risk distribution, latency, and drift
 
 ### ML Model
 
@@ -87,11 +110,13 @@ The risk engine considers these merchant-provided signals when computing feature
 ### Key Features
 
 - Real-time risk scoring with XAI explanations
+- Razorpay integration (order creation, payment verification, webhook handling)
+- Demo page with live Razorpay checkout → fraud scoring flow
 - Alert management (acknowledge/dismiss/resolve)
 - Batch transaction scoring
-- Razorpay webhook integration (payment.captured, payment.failed, disputes)
 - API key + JWT authentication
-- Prometheus metrics + Grafana dashboards
+- Prometheus metrics + Grafana dashboards (9 panels)
+- MLflow experiment tracking
 - Model drift detection (PSI monitoring)
 - PCI DSS compliant (card numbers masked, never logged)
 - PostgreSQL with async SQLAlchemy
@@ -101,39 +126,45 @@ The risk engine considers these merchant-provided signals when computing feature
 ## Quick Start
 
 ### Prerequisites
-- Python 3.12+
-- Node.js 20+
-- PostgreSQL 16+ (or SQLite for dev)
-- Docker (optional)
+- Docker & Docker Compose
+
+### Docker (Recommended)
+
+```bash
+git clone https://github.com/adityashirsatrao007/riskshield-ai.git
+cd riskshield-ai
+docker compose up --build
+```
 
 ### Local Development
 
 ```bash
-# 1. Clone and setup
-git clone https://github.com/adityashirsatrao007/riskshield-ai.git
-cd riskshield-ai
-
-# 2. Backend
+# Backend
 cd backend
 pip install -r requirements.txt
-cp .env.example .env  # edit with your secrets
+cp .env.example .env
 uvicorn app.main:app --reload --port 8000
 
-# 3. Frontend (new terminal)
+# Frontend (new terminal)
 cd frontend
 npm install
 npm run dev
 ```
 
-Open http://localhost:5173
+## Services
 
-### Docker
-
-```bash
-docker compose up --build
-```
-
-Frontend: http://localhost:3000 | Backend: http://localhost:8000
+| Service | Port | URL | Description |
+|---------|------|-----|-------------|
+| Frontend | 3000 | http://localhost:3000 | React dashboard |
+| Demo Page | 3000 | http://localhost:3000/demo.html | Razorpay checkout demo |
+| Backend API | 8000 | http://localhost:8000 | FastAPI REST API |
+| Swagger Docs | 8000 | http://localhost:8000/docs | API documentation |
+| Grafana | 3001 | http://localhost:3001 | Monitoring dashboard (admin/admin) |
+| Prometheus | 9090 | http://localhost:9090 | Metrics collection |
+| MLflow | 5000 | http://localhost:5000 | Experiment tracking |
+| PostgreSQL | 5432 | localhost:5432 | Database |
+| Redis | 6380 | localhost:6380 | Cache & sessions |
+| Kafka | 9092 | localhost:9092 | Event streaming |
 
 ## API
 
@@ -185,6 +216,26 @@ curl -X POST http://localhost:8000/api/v1/transactions \
 }
 ```
 
+### Razorpay Integration
+
+```bash
+# Create order
+curl -X POST http://localhost:8000/api/v1/orders \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ADMIN_API_KEY" \
+  -d '{"amount": 499, "currency": "INR"}'
+
+# Verify payment
+curl -X POST http://localhost:8000/api/v1/orders/verify \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ADMIN_API_KEY" \
+  -d '{
+    "razorpay_order_id": "order_xxx",
+    "razorpay_payment_id": "pay_xxx",
+    "razorpay_signature": "xxx"
+  }'
+```
+
 ### Other Endpoints
 
 | Method | Endpoint | Auth | Description |
@@ -194,6 +245,9 @@ curl -X POST http://localhost:8000/api/v1/transactions \
 | GET | `/api/v1/auth/me` | JWT | Current merchant info |
 | POST | `/api/v1/transactions` | API Key | Score single transaction |
 | POST | `/api/v1/transactions/batch` | API Key | Batch score transactions |
+| GET | `/api/v1/transactions` | API Key | List transactions |
+| POST | `/api/v1/orders` | Admin | Create Razorpay order |
+| POST | `/api/v1/orders/verify` | Admin | Verify Razorpay payment |
 | GET | `/api/v1/alerts` | Admin | List alerts |
 | PUT | `/api/v1/alerts/{id}/status` | Admin | Update alert status |
 | GET | `/api/v1/alerts/stats` | Admin | Alert statistics |
@@ -202,6 +256,7 @@ curl -X POST http://localhost:8000/api/v1/transactions \
 | GET | `/api/v1/analytics/risk-distribution` | Admin | Risk score distribution |
 | GET | `/api/v1/analytics/false-positive-analysis` | Admin | FP cost breakdown |
 | POST | `/api/v1/webhooks/razorpay` | Signature | Razorpay webhook handler |
+| GET | `/api/v1/webhooks/razorpay/logs` | Admin | Webhook event logs |
 | GET | `/api/v1/model/info` | None | Model metadata |
 | GET | `/metrics` | None | Prometheus metrics |
 
@@ -211,53 +266,69 @@ curl -X POST http://localhost:8000/api/v1/transactions \
 razorpay-risk-shield/
 ├── ml/
 │   ├── scripts/
-│   │   ├── generate_data.py   # Synthetic transaction generator
-│   │   ├── train.py           # Model training pipeline
-│   │   └── predict.py         # Prediction module
-│   ├── data/                  # Training datasets
-│   └── models/                # Trained model artifacts
+│   │   ├── train.py                # Model training pipeline
+│   │   └── predict.py              # Prediction module
+│   ├── models/
+│   │   ├── fraud_detector_v2.joblib  # Trained model
+│   │   ├── fraud_patterns.json     # 50 real fraud patterns
+│   │   ├── metrics_v2.json         # Model metrics
+│   │   └── feature_importances.json
+│   └── data/                       # Training datasets
 ├── backend/
 │   ├── app/
-│   │   ├── main.py            # FastAPI app, middleware, lifecycle
+│   │   ├── main.py                 # FastAPI app, middleware, lifecycle
 │   │   ├── core/
-│   │   │   ├── config.py      # Pydantic Settings (env validation)
-│   │   │   ├── database.py    # Async SQLAlchemy engine
-│   │   │   └── auth.py        # JWT + API key authentication
+│   │   │   ├── config.py           # Pydantic Settings
+│   │   │   ├── database.py         # Async SQLAlchemy engine
+│   │   │   └── auth.py             # JWT + API key auth
 │   │   ├── api/
-│   │   │   ├── transactions.py  # Scoring endpoints
-│   │   │   ├── alerts.py        # Alert management
-│   │   │   ├── analytics.py     # Dashboard & analytics
-│   │   │   ├── auth.py          # Register/login/rotate key
-│   │   │   └── webhooks.py      # Razorpay webhook handler
-│   │   ├── models/             # SQLAlchemy ORM models
+│   │   │   ├── transactions.py     # Scoring endpoints
+│   │   │   ├── orders.py           # Razorpay order creation & verification
+│   │   │   ├── alerts.py           # Alert management
+│   │   │   ├── analytics.py        # Dashboard & analytics
+│   │   │   ├── auth.py             # Register/login/rotate key
+│   │   │   └── webhooks.py         # Razorpay webhook handler
+│   │   ├── models/                 # SQLAlchemy ORM models
 │   │   └── services/
-│   │       ├── risk_engine.py   # ML inference pipeline
-│   │       ├── monitoring.py    # Prometheus metrics + drift detection
-│   │       └── pci.py           # Card masking & Luhn validation
-│   ├── tests/test_api.py       # 13 integration tests
+│   │       ├── risk_engine.py      # ML inference pipeline
+│   │       ├── monitoring.py       # Prometheus metrics + drift detection
+│   │       └── pci.py              # Card masking & Luhn validation
+│   ├── alembic/                    # Database migrations
+│   ├── tests/test_api.py           # Integration tests
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── pages/              # Dashboard, Transactions, Alerts, Analytics
-│   │   ├── components/         # RiskBadge, StatCard, Layout, Toast
-│   │   └── lib/                # API client, TypeScript types
-│   └── package.json
+│   │   ├── pages/                  # Dashboard, Transactions, Alerts, Analytics
+│   │   ├── components/             # RiskBadge, StatCard, Layout
+│   │   └── lib/                    # API client, TypeScript types
+│   ├── public/demo.html            # Razorpay checkout demo page
+│   └── nginx.conf                  # SPA routing + API proxy
 ├── infrastructure/
-│   ├── grafana-dashboard.json  # Pre-configured Grafana dashboard
-│   └── prometheus.yml          # Prometheus scrape config
-├── .github/workflows/ci.yml   # Lint → Test → Build pipeline
-├── docker-compose.yml          # 10-service stack
-├── Dockerfile                  # Multi-stage build
-└── Makefile                    # Dev commands
+│   ├── grafana-dashboard.json      # 9-panel Grafana dashboard
+│   ├── grafana-provisioning/       # Auto-provisioned datasources
+│   └── prometheus.yml              # Prometheus scrape config
+├── scripts/
+│   ├── demo_seed.py                # Quick demo setup
+│   ├── demo_bulk_seed.py           # Bulk data seeding
+│   └── mlflow_log_model.py         # Log model to MLflow
+├── .github/workflows/ci.yml        # Lint → Test → Build pipeline
+├── docker-compose.yml              # 10-service stack
+├── Dockerfile.backend              # Multi-stage backend build
+├── Dockerfile.frontend             # Nginx + Vite build
+└── .env.example                    # Environment template
 ```
 
 ## Infrastructure
 
-- **PostgreSQL** — Transaction storage, alert management, audit trail
-- **Redis** — Session caching, rate limiting
-- **Prometheus** — Metrics collection (predictions, latency, drift)
-- **Grafana** — Real-time monitoring dashboard (port 3001)
-- **Razorpay Webhooks** — Live payment event processing
+| Service | Purpose |
+|---------|---------|
+| **PostgreSQL 16** | Transaction storage, alerts, audit trail |
+| **Redis 7** | Session caching, rate limiting, Celery broker |
+| **Kafka** | Event streaming for real-time transaction processing |
+| **Celery** | Background task processing |
+| **Prometheus** | Metrics collection (predictions, latency, drift) |
+| **Grafana** | Real-time monitoring dashboard (9 panels) |
+| **MLflow** | ML experiment tracking and model registry |
 
 ## Security
 
@@ -268,6 +339,7 @@ razorpay-risk-shield/
 - HSTS, CORS, rate limiting headers
 - Non-root Docker containers
 - Secrets never committed (`.env` in `.gitignore`)
+- Admin API key auto-derived when not set (dev mode)
 
 ## Built For
 
