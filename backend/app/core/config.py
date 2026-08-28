@@ -1,6 +1,5 @@
 import os
 import hashlib
-import secrets
 import logging
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
@@ -9,8 +8,6 @@ logger = logging.getLogger("riskshield")
 
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"), override=False)
-
-INSTANCE_SALT = os.environ.get("INSTANCE_SALT", "riskshield-demo-2026")
 
 
 class Settings(BaseSettings):
@@ -61,9 +58,8 @@ class Settings(BaseSettings):
     @classmethod
     def _enforce_secret_key(cls, v: str) -> str:
         if not v:
-            derived = hashlib.sha256(f"{INSTANCE_SALT}-secret-key".encode()).hexdigest()
-            logger.warning("SECRET_KEY not set — using derived default. Set RISKSHIELD_SECRET_KEY for production.")
-            return derived
+            v = hashlib.sha256(b"riskshield-dev-secret-key").hexdigest()
+            logger.warning("SECRET_KEY not set — using dev default. Set RISKSHIELD_SECRET_KEY for production.")
         if len(v) < 32:
             raise ValueError("RISKSHIELD_SECRET_KEY must be at least 32 characters")
         return v
@@ -72,9 +68,8 @@ class Settings(BaseSettings):
     @classmethod
     def _enforce_admin_key(cls, v: str) -> str:
         if not v:
-            derived = hashlib.sha256(f"{INSTANCE_SALT}-api-key".encode()).hexdigest()[:43]
-            logger.warning("RISKSHIELD_API_KEY not set — using derived default. Set for production.")
-            return derived
+            v = hashlib.sha256(b"riskshield-dev-api-key").hexdigest()[:43]
+            logger.warning("RISKSHIELD_API_KEY not set — using dev default. Set for production.")
         return v
 
 
