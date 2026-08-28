@@ -12,6 +12,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from app.api.alerts import router as alert_router
 from app.api.analytics import router as analytics_router
 from app.api.auth import router as auth_router
+from app.api.orders import router as orders_router
 from app.api.transactions import router as txn_router
 from app.api.webhooks import router as webhook_router
 from app.core.auth import verify_api_key
@@ -161,6 +162,7 @@ app.add_middleware(
 
 app.include_router(auth_router, prefix=settings.API_PREFIX)
 app.include_router(webhook_router, prefix=settings.API_PREFIX)
+app.include_router(orders_router, prefix=settings.API_PREFIX)
 app.include_router(txn_router, prefix=settings.API_PREFIX)
 app.include_router(alert_router, prefix=settings.API_PREFIX)
 app.include_router(analytics_router, prefix=settings.API_PREFIX)

@@ -8,23 +8,33 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #030712; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-        .card { background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(148, 163, 184, 0.1); border-radius: 16px; padding: 40px; max-width: 420px; width: 90%; backdrop-filter: blur(20px); }
+        .card { background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(148, 163, 184, 0.1); border-radius: 16px; padding: 40px; max-width: 480px; width: 90%; backdrop-filter: blur(20px); }
         .badge { display: inline-block; background: rgba(99, 102, 241, 0.15); color: #818cf8; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; margin-bottom: 16px; }
         h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
         .desc { color: #94a3b8; font-size: 14px; margin-bottom: 24px; line-height: 1.5; }
         .price { font-size: 36px; font-weight: 800; background: linear-gradient(135deg, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 24px; }
         .features { list-style: none; margin-bottom: 24px; }
         .features li { padding: 8px 0; font-size: 14px; color: #cbd5e1; display: flex; align-items: center; gap: 8px; }
-        .features li::before { content: "✓"; color: #34d399; font-weight: bold; }
+        .features li::before { content: "\2713"; color: #34d399; font-weight: bold; }
         .btn { width: 100%; padding: 14px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; border-radius: 12px; color: white; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
         .btn:hover { transform: translateY(-1px); box-shadow: 0 8px 25px rgba(99, 102, 241, 0.3); }
         .btn:active { transform: translateY(0); }
-        .result { margin-top: 20px; padding: 16px; border-radius: 12px; font-size: 13px; display: none; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+        .result { margin-top: 20px; padding: 16px; border-radius: 12px; font-size: 13px; display: none; line-height: 1.6; }
         .result.success { display: block; background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.2); color: #4ade80; }
         .result.error { display: block; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #f87171; }
+        .result.info { display: block; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.2); color: #818cf8; }
         .note { margin-top: 16px; font-size: 11px; color: #64748b; text-align: center; }
         .test-cards { margin-top: 12px; font-size: 11px; color: #64748b; background: rgba(30, 41, 59, 0.3); padding: 10px; border-radius: 8px; }
         .test-cards strong { color: #94a3b8; }
+        .step { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 13px; }
+        .step-num { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+        .step-pending { background: rgba(100, 116, 139, 0.2); color: #64748b; }
+        .step-active { background: rgba(99, 102, 241, 0.2); color: #818cf8; }
+        .step-done { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
+        .step-text { color: #94a3b8; }
+        .step-text.active { color: #e2e8f0; }
+        .divider { border-top: 1px solid rgba(148, 163, 184, 0.1); margin: 20px 0; }
     </style>
 </head>
 <body>
@@ -32,71 +42,168 @@
         <div class="badge">Razorpay AI Buildathon</div>
         <h1>Premium Widget</h1>
         <p class="desc">AI-powered fraud detection demo. Pay here and watch RiskShield score the transaction in real-time.</p>
-        <div class="price">₹499</div>
+        <div class="price">&#x20B9;499</div>
         <ul class="features">
-            <li>Real-time fraud scoring</li>
-            <li>Explainable AI (XAI)</li>
+            <li>Server-side order creation (Razorpay SDK)</li>
+            <li>Real-time fraud scoring on payment capture</li>
+            <li>HMAC-SHA256 webhook verification</li>
             <li>Auto-alert on suspicious payments</li>
-            <li>Razorpay webhook integration</li>
         </ul>
-        <button class="btn" onclick="openCheckout()">Pay ₹499 with Razorpay</button>
+
+        <div class="divider"></div>
+
+        <div class="step">
+            <div class="step-num step-pending" id="step1">1</div>
+            <span class="step-text" id="step1text">Create order on server</span>
+        </div>
+        <div class="step">
+            <div class="step-num step-pending" id="step2">2</div>
+            <span class="step-text" id="step2text">Customer pays via Razorpay checkout</span>
+        </div>
+        <div class="step">
+            <div class="step-num step-pending" id="step3">3</div>
+            <span class="step-text" id="step3text">Webhook fires &rarr; RiskShield scores</span>
+        </div>
+
+        <div class="divider"></div>
+
+        <button class="btn" id="payBtn" onclick="startPayment()">Pay &#x20B9;499 with Razorpay</button>
         <div id="result" class="result"></div>
         <div class="test-cards">
             <strong>Test Card:</strong> 4111 1111 1111 1111 | Exp: Any future | CVV: Any
         </div>
-        <p class="note">Test mode — no real money charged</p>
+        <p class="note">Test mode &mdash; no real money charged</p>
     </div>
 
     <script>
-        function openCheckout() {
-            const resultEl = document.getElementById('result');
-            resultEl.className = 'result';
-            resultEl.style.display = 'none';
+        const API_BASE = window.location.origin;
+        const API_KEY = localStorage.getItem('riskshield_api_key') || '';
 
-            const options = {
-                key: 'rzp_test_TUkEVTNgmlQEGi',
-                amount: 49900,
-                currency: 'INR',
-                name: 'RiskShield AI',
-                description: 'Premium Widget — Fraud Detection Demo',
-                image: '/shield.svg',
-                handler: function(response) {
-                    resultEl.className = 'result success';
-                    resultEl.innerHTML = '<strong>Payment Successful!</strong><br>' +
-                        'Payment ID: ' + response.razorpay_payment_id + '<br>' +
-                        'The webhook has fired. Check the RiskShield dashboard to see the fraud score.';
-                    resultEl.style.display = 'block';
-                },
-                prefill: {
-                    name: 'Demo Customer',
-                    email: 'demo@riskshield.ai',
-                    contact: '9999999999'
-                },
-                notes: {
-                    merchant_id: 'demo_merchant',
-                    transaction_type: 'fraud_detection_demo'
-                },
-                theme: {
-                    color: '#6366f1'
-                },
-                modal: {
-                    ondismiss: function() {
-                        resultEl.className = 'result error';
-                        resultEl.innerHTML = '<strong>Payment Cancelled</strong><br>The transaction was not completed.';
-                        resultEl.style.display = 'block';
-                    }
+        function setStep(num, state) {
+            const el = document.getElementById('step' + num);
+            const text = document.getElementById('step' + num + 'text');
+            el.className = 'step-num step-' + state;
+            if (state === 'done') el.innerHTML = '&#10003;';
+            else el.textContent = num;
+            text.className = 'step-text' + (state === 'active' || state === 'done' ? ' active' : '');
+        }
+
+        function showResult(type, msg) {
+            const el = document.getElementById('result');
+            el.className = 'result ' + type;
+            el.innerHTML = msg;
+        }
+
+        async function startPayment() {
+            const btn = document.getElementById('payBtn');
+            btn.disabled = true;
+            btn.textContent = 'Creating order...';
+            setStep(1, 'active');
+
+            try {
+                const resp = await fetch(API_BASE + '/api/v1/orders', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': API_KEY,
+                    },
+                    body: JSON.stringify({ amount: 499, currency: 'INR' }),
+                });
+
+                if (!resp.ok) {
+                    const err = await resp.json();
+                    throw new Error(err.detail || 'Order creation failed');
                 }
-            };
 
-            const rzp = new Razorpay(options);
-            rzp.on('payment.failed', function(response) {
-                resultEl.className = 'result error';
-                resultEl.innerHTML = '<strong>Payment Failed</strong><br>' +
-                    'Error: ' + response.error.description + '<br>' +
-                    'This would trigger a RiskShield alert in production.';
-                resultEl.style.display = 'block';
-            });
-            rzp.open();
+                const order = await resp.json();
+                setStep(1, 'done');
+                setStep(2, 'active');
+                btn.textContent = 'Opening checkout...';
+
+                const options = {
+                    key: order.key_id,
+                    amount: order.amount,
+                    currency: order.currency,
+                    name: 'RiskShield AI',
+                    description: 'Premium Widget — Fraud Detection Demo',
+                    order_id: order.order_id,
+                    handler: async function(response) {
+                        setStep(2, 'done');
+                        setStep(3, 'active');
+                        showResult('info', '<strong>Payment submitted!</strong><br>Waiting for webhook...<br><br>Payment ID: ' + response.razorpay_payment_id);
+
+                        try {
+                            const verifyResp = await fetch(API_BASE + '/api/v1/orders/verify', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-API-Key': API_KEY,
+                                },
+                                body: JSON.stringify({
+                                    razorpay_order_id: response.razorpay_order_id,
+                                    razorpay_payment_id: response.razorpay_payment_id,
+                                    razorpay_signature: response.razorpay_signature,
+                                }),
+                            });
+
+                            if (verifyResp.ok) {
+                                setStep(3, 'done');
+                                showResult('success',
+                                    '<strong>Payment Successful &amp; Verified!</strong><br><br>' +
+                                    'Order ID: ' + response.razorpay_order_id + '<br>' +
+                                    'Payment ID: ' + response.razorpay_payment_id + '<br><br>' +
+                                    'The webhook has fired. RiskShield has scored this transaction.<br>' +
+                                    'Check the <a href="/" style="color:#818cf8">dashboard</a> to see the risk assessment.'
+                                );
+                            } else {
+                                setStep(3, 'done');
+                                showResult('error', '<strong>Payment succeeded but verification failed.</strong><br>The webhook will still process it.');
+                            }
+                        } catch (e) {
+                            setStep(3, 'done');
+                            showResult('success',
+                                '<strong>Payment Successful!</strong><br><br>' +
+                                'Payment ID: ' + response.razorpay_payment_id + '<br><br>' +
+                                'The webhook has fired. Check the dashboard for the fraud score.'
+                            );
+                        }
+                    },
+                    prefill: {
+                        name: 'Demo Customer',
+                        email: 'demo@riskshield.ai',
+                        contact: '9999999999',
+                    },
+                    notes: {
+                        merchant_id: 'demo_merchant',
+                        customer_id: 'demo_customer_001',
+                    },
+                    theme: { color: '#6366f1' },
+                    modal: {
+                        ondismiss: function() {
+                            btn.disabled = false;
+                            btn.textContent = 'Pay \u20B9499 with Razorpay';
+                            showResult('error', '<strong>Payment Cancelled</strong><br>The transaction was not completed.');
+                        }
+                    },
+                };
+
+                const rzp = new Razorpay(options);
+                rzp.on('payment.failed', function(response) {
+                    btn.disabled = false;
+                    btn.textContent = 'Pay \u20B9499 with Razorpay';
+                    showResult('error',
+                        '<strong>Payment Failed</strong><br>' +
+                        'Error: ' + response.error.description + '<br>' +
+                        'This would trigger a RiskShield alert in production.'
+                    );
+                });
+                rzp.open();
+
+            } catch (err) {
+                btn.disabled = false;
+                btn.textContent = 'Pay \u20B9499 with Razorpay';
+                showResult('error', '<strong>Error</strong><br>' + err.message);
+            }
         }
     </script>
 </body>

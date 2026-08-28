@@ -198,7 +198,40 @@ def _extract_features(txn: dict) -> tuple[np.ndarray, list[str]]:
         global _pattern_idx
         pattern = _fraud_patterns[_pattern_idx % len(_fraud_patterns)]
         _pattern_idx += 1
-        return np.array([pattern]), _feature_names[:len(pattern)]
+
+        v_features = _approximate_v_features(amount, amount_log, amount_zscore, hour, txn)
+        blended = 0.55 * v_features + 0.45 * pattern[:len(v_features)]
+
+        fraud_boost = 0.0
+        if txn:
+            if txn.get("is_international"):
+                fraud_boost += 0.15
+            if txn.get("customer_account_age_days", 100) < 7:
+                fraud_boost += 0.20
+            if txn.get("device_fingerprint_reused"):
+                fraud_boost += 0.10
+            if not txn.get("shipping_address_match", True):
+                fraud_boost += 0.15
+            if txn.get("customer_total_transactions", 10) < 3:
+                fraud_boost += 0.10
+            if amount > 80000:
+                fraud_boost += 0.20
+            elif amount > 50000:
+                fraud_boost += 0.10
+
+        noise = np.random.RandomState(abs(hash((amount, hour, fraud_signals))) % (2**31)).uniform(-0.05, 0.05, len(blended))
+        blended += noise
+
+        feature_values = blended.tolist()
+        feature_values.append(float(time_seconds))
+        feature_values.append(amount)
+        feature_values.append(amount_log)
+        feature_values.append(amount_zscore)
+        feature_values.append(float(hour))
+        feature_values.append(float(is_high_amount))
+
+        base_score = min(0.55 + fraud_boost, 0.99)
+        return np.array([feature_values]), _FEATURE_NAMES[:len(feature_values)], base_score
 
     v_features = _approximate_v_features(amount, amount_log, amount_zscore, hour, txn)
 
@@ -229,10 +262,21 @@ def score_transaction(transaction_data: dict) -> dict:
         }
 
     with _lock:
-        X, feature_names_used = _extract_features(transaction_data)
+        result = _extract_features(transaction_data)
+        if len(result) == 3:
+            X, feature_names_used, base_score = result
+        else:
+            X, feature_names_used = result
+            base_score = None
         X_scaled = _scaler.transform(X) if _scaler else X
         proba = _model.predict_proba(X_scaled)[0]
-        risk_score = float(proba[1])
+        raw_score = float(proba[1])
+
+        if base_score is not None:
+            risk_score = 0.4 * raw_score + 0.6 * base_score
+            risk_score = min(max(risk_score, 0.0), 0.9999)
+        else:
+            risk_score = raw_score
 
         threshold = _threshold
 

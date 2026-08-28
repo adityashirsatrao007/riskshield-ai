@@ -93,15 +93,34 @@ async def handle_razorpay_webhook(
 
 
 async def _handle_payment_captured(payload: dict):
+    from datetime import datetime, timezone
+    from app.services import risk_engine
+
     payment = payload.get("payment", {}).get("entity", {})
     amount = payment.get("amount", 0) / 100
     order_id = payment.get("order_id", "")
     payment_id = payment.get("id", "")
 
     logger.info(
-        "Payment captured: id=%s order=%s amount=%.2f",
+        "Payment captured: id=%s order=%s amount=%.2f — scoring transaction",
         payment_id, order_id, amount,
     )
+
+    txn_data = {
+        "transaction_id": payment_id or order_id,
+        "amount": amount,
+        "currency": payment.get("currency", "INR"),
+        "merchant_id": payment.get("notes", {}).get("merchant_id", "unknown"),
+        "customer_id": payment.get("notes", {}).get("customer_id", "unknown"),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+    if risk_engine.is_loaded():
+        result = risk_engine.score_transaction(txn_data)
+        logger.info(
+            "Auto-scored payment %s: risk=%.4f level=%s flagged=%s",
+            payment_id, result["risk_score"], result["risk_level"], result["is_flagged"],
+        )
 
 
 async def _handle_payment_failed(payload: dict):
