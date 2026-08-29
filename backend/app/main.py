@@ -58,6 +58,35 @@ def setup_logging():
 setup_logging()
 
 
+def _seed_prometheus_metrics():
+    """Seed Prometheus counters with sample data so Grafana shows live metrics."""
+    import random
+    from app.services.monitoring import (
+        PREDICTIONS_TOTAL,
+        RISK_SCORE_HISTOGRAM,
+        PROCESSING_TIME,
+        FRAUD_DETECTED_TOTAL,
+    )
+
+    merchants = ["merchant_1", "merchant_2", "merchant_3", "demo_merchant"]
+    risk_levels = ["low"] * 7 + ["medium"] * 2 + ["high"] * 1
+
+    for i in range(50):
+        merchant = random.choice(merchants)
+        risk_level = random.choice(risk_levels)
+        score = random.uniform(0.05, 0.95)
+        latency = random.uniform(50, 200)
+
+        PREDICTIONS_TOTAL.labels(merchant_id=merchant, risk_level=risk_level).inc()
+        RISK_SCORE_HISTOGRAM.observe(score)
+        PROCESSING_TIME.observe(latency)
+
+        if risk_level in ("high", "critical"):
+            FRAUD_DETECTED_TOTAL.labels(merchant_id=merchant).inc()
+
+    logger.info("Seeded 50 predictions into Prometheus metrics")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     model_path = settings.MODEL_PATH
@@ -69,6 +98,11 @@ async def lifespan(app: FastAPI):
 
     await init_db()
     logger.info("Database initialized")
+
+    try:
+        _seed_prometheus_metrics()
+    except Exception as e:
+        logger.warning("Failed to seed Prometheus metrics: %s", e)
 
     yield
 

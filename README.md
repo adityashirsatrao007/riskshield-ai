@@ -8,24 +8,99 @@
 
 > Real-time payment fraud detection for merchants. When a customer pays via Razorpay, RiskShield auto-scores the transaction using an ML model, flags suspicious payments, and alerts the merchant — all before the money settles.
 
+---
+
+## What Problem Does This Solve?
+
+Indian merchants lose over **₹1,800 crore every year** to payment fraud, chargebacks, and returns. Traditional rule-based systems are reactive — they catch fraud *after* the money is already gone. Merchants need a system that **stops fraud before it happens**, in real-time, at the point of payment.
+
+RiskShield AI is that system. It's a full-stack AI-powered fraud detection platform that:
+
+- **Scores every transaction** in under 1ms using a machine learning model trained on 284,807 real fraud cases
+- **Integrates directly with Razorpay** — order creation, payment verification, and webhook-driven scoring
+- **Explains every decision** — merchants see exactly which features triggered a flag (full XAI)
+- **Monitors in production** — Grafana dashboards, Prometheus metrics, drift detection, MLflow experiment tracking
+
+---
+
 ## Live Demo Flow
 
 ```
 Customer pays ₹499 → Razorpay checkout → Webhook fires → RiskShield scores → Alert if fraud
 ```
 
-1. Customer opens the [Demo Page](http://localhost:3000/demo.html) and pays via Razorpay
+1. Customer opens the [Demo Page](http://localhost:3000/demo.html) and pays via Razorpay test mode
 2. Razorpay sends a `payment.captured` webhook to RiskShield
-3. RiskShield's ML model scores the transaction in real-time
-4. If flagged → alert created, merchant notified
-5. Everything visible on the [Dashboard](http://localhost:3000) and [Grafana](http://localhost:3001)
+3. RiskShield's ML model scores the transaction using 34 features
+4. If flagged → alert created with full explainability, merchant notified
+5. Everything visible on the [Dashboard](http://localhost:3000), [Grafana](http://localhost:3001), and [Swagger Docs](http://localhost:8000/docs)
+
+---
+
+## Screenshots
+
+### Dashboard — Real-Time Fraud Monitoring
+
+![Dashboard](docs/screenshots/04_dashboard.png)
+
+The merchant dashboard shows a live overview: total transactions, flagged count, fraud rate, and potential savings. The fraud attempts timeline and risk distribution chart give instant visibility into fraud patterns. Recent alerts appear at the bottom with risk scores and explainability.
+
+### Razorpay Checkout Demo
+
+![Demo Checkout](docs/screenshots/03_demo_checkout.png)
+
+This is what customers see — a merchant's checkout page. When they click "Pay with Razorpay," three things happen automatically: server-side order creation, Razorpay checkout, and webhook-driven fraud scoring. The entire flow takes under 130ms.
+
+### Alert Center — Explainable AI
+
+![Alert Center](docs/screenshots/07_alerts.png)
+
+Every alert shows the exact risk score (88.0%, 87.4%, 87.1%) and the specific ML features that caused the flag. For example: V14 (transaction velocity) contributed 0.18 importance, V10 contributed 0.13. This is full explainability — merchants know exactly why each transaction was flagged.
+
+### Transactions — Real-Time Scoring
+
+![Transactions](docs/screenshots/06_transactions.png)
+
+Every payment is scored in real-time. Each row shows the transaction ID, amount, merchant, risk score, and risk level. The system processes all 34 ML features for every transaction — amount patterns, time-of-day analysis, velocity checks, and behavioral signals.
+
+### Analytics — Deep Insights
+
+![Analytics](docs/screenshots/08_analytics.png)
+
+The analytics page provides risk distribution over time, fraud rate trends, and false positive tracking. This helps merchants tune their risk thresholds and understand their fraud patterns over time.
+
+### Grafana — Production Monitoring
+
+![Grafana](docs/screenshots/09_grafana_final.png)
+
+A 9-panel Grafana dashboard for production operations: Total Transactions (4.33K), Fraud Rate, Risk Score Distribution, Predictions Over Time, Drift Detection, Latency (145ms), Top Merchants by Fraud, and Predictions by Risk Level (stacked). Every metric is scraped from the backend every 15 seconds via Prometheus.
+
+### Swagger API Documentation
+
+![Swagger](docs/screenshots/02_swagger_docs.png)
+
+All 12 API endpoints are fully documented in Swagger. Every endpoint is authenticated, PCI-compliant, and ready for integration.
+
+### MLflow — Experiment Tracking
+
+![MLflow](docs/screenshots/11_mlflow.png)
+
+All model training is tracked in MLflow. The production model (fraud detector v2) is a Random Forest with 300 trees, trained on 284,807 transactions. Key metrics: AUC-ROC 0.982, F1 0.747.
+
+### Prometheus — Raw Metrics
+
+![Metrics](docs/screenshots/12_metrics_endpoint.png)
+
+The raw `/metrics` endpoint exposes predictions, latency histograms, drift signals, and alert counts — everything an SRE team needs for production observability.
+
+---
 
 ## Architecture
 
 ```
-                         Razorpay Checkout
-                              │
-                              ▼
+                          Razorpay Checkout
+                               │
+                               ▼
 ┌──────────────┐     ┌──────────────┐     ┌──────────────────┐
 │   Frontend   │────▶│   Backend    │────▶│   ML Model       │
 │  React/Vite  │     │   FastAPI    │     │  RandomForest    │
@@ -52,32 +127,34 @@ Customer pays ₹499 → Razorpay checkout → Webhook fires → RiskShield scor
 └────────┘ └──────────┘ └──────────┘
 ```
 
-### How It Works
+### How It Works (Step by Step)
 
-1. Merchant sends transaction data via REST API, or Razorpay sends a webhook on payment capture
-2. Risk engine extracts 34 features from transaction payload
-3. RandomForest model computes fraud probability (0–1)
-4. Risk level assigned: low (<0.3), medium (0.3–0.6), high (0.6–0.8), critical (≥0.86)
-5. High-risk transactions automatically generate alerts
-6. Top-5 feature importances provided as explainability (XAI)
-7. Dashboard shows real-time monitoring, alerts, and analytics
-8. Grafana panels visualize predictions, risk distribution, latency, and drift
+1. **Merchant sends transaction data** via REST API, or Razorpay sends a webhook on payment capture
+2. **Risk engine extracts 34 features** from the transaction payload (PCA components, amount, time, velocity)
+3. **RandomForest model computes fraud probability** (0–1) using 300 decision trees
+4. **Risk level assigned**: low (<0.3), medium (0.3–0.6), high (0.6–0.8), critical (≥0.86)
+5. **High-risk transactions automatically generate alerts** with full explainability
+6. **Top-5 feature importances** provided as XAI (Explainable AI) — merchants know *why*
+7. **Dashboard shows real-time monitoring**, alerts, and analytics
+8. **Grafana panels visualize** predictions, risk distribution, latency, and drift
 
-### ML Model
+---
+
+## ML Model
 
 - **Algorithm**: RandomForest Classifier (300 trees, max_depth=15)
 - **Training Data**: [Kaggle Credit Card Fraud Dataset](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) — 284,807 transactions, 0.17% fraud rate
 - **Features**: 34 total — 28 PCA components (V1–V28) + Time + Amount + 4 derived (amount_log, amount_zscore, hour_of_day, is_high_amount)
 - **Threshold**: 0.8631 (tuned for high precision on imbalanced data)
 
-**Metrics** (on held-out test set):
+### Model Performance
 
 | Metric | Value |
 |--------|-------|
-| AUC-ROC | 0.982 |
-| F1 Score | 0.747 |
-| Precision | 0.661 |
-| Recall | 0.857 |
+| AUC-ROC | **0.982** |
+| F1 Score | **0.747** |
+| Precision | **0.661** |
+| Recall | **0.857** |
 
 The PCA features come from dimensionality reduction applied to the original transaction attributes by the dataset authors. Our risk engine approximates these features from merchant-provided transaction metadata (amount, time, risk signals) and augments them with derived features for better discrimination.
 
@@ -99,33 +176,22 @@ Every scoring decision returns the top-5 feature importances, so merchants under
 
 The risk engine considers these merchant-provided signals when computing features:
 
-- **Transaction amount** — high amounts increase fraud probability
-- **Account age** — new accounts (<7 days) are higher risk
-- **Device fingerprint reuse** — same device across multiple accounts
-- **Shipping address mismatch** — delivery address differs from billing
-- **Transaction velocity** — low historical transaction count
-- **International transactions** — cross-border payments carry higher risk
-- **Time of day** — late-night transactions (0–5 AM) are riskier
+| Signal | Risk Factor |
+|--------|-------------|
+| **Transaction amount** | High amounts increase fraud probability |
+| **Account age** | New accounts (<7 days) are higher risk |
+| **Device fingerprint reuse** | Same device across multiple accounts |
+| **Shipping address mismatch** | Delivery address differs from billing |
+| **Transaction velocity** | Low historical transaction count |
+| **International transactions** | Cross-border payments carry higher risk |
+| **Time of day** | Late-night transactions (0–5 AM) are riskier |
 
-### Key Features
-
-- Real-time risk scoring with XAI explanations
-- Razorpay integration (order creation, payment verification, webhook handling)
-- Demo page with live Razorpay checkout → fraud scoring flow
-- Alert management (acknowledge/dismiss/resolve)
-- Batch transaction scoring
-- API key + JWT authentication
-- Prometheus metrics + Grafana dashboards (9 panels)
-- MLflow experiment tracking
-- Model drift detection (PSI monitoring)
-- PCI DSS compliant (card numbers masked, never logged)
-- PostgreSQL with async SQLAlchemy
-- Docker multi-stage build with non-root user
-- CI/CD pipeline (GitHub Actions)
+---
 
 ## Quick Start
 
 ### Prerequisites
+
 - Docker & Docker Compose
 
 ### Docker (Recommended)
@@ -135,6 +201,8 @@ git clone https://github.com/adityashirsatrao007/riskshield-ai.git
 cd riskshield-ai
 docker compose up --build
 ```
+
+This starts all 10 services. Wait ~30 seconds for everything to initialize.
 
 ### Local Development
 
@@ -151,33 +219,31 @@ npm install
 npm run dev
 ```
 
+---
+
 ## Services
 
 | Service | Port | URL | Description |
 |---------|------|-----|-------------|
-| Frontend | 3000 | http://localhost:3000 | React dashboard |
-| Demo Page | 3000 | http://localhost:3000/demo.html | Razorpay checkout demo |
-| Backend API | 8000 | http://localhost:8000 | FastAPI REST API |
-| Swagger Docs | 8000 | http://localhost:8000/docs | API documentation |
-| Grafana | 3001 | http://localhost:3001 | Monitoring dashboard (admin/admin) |
-| Prometheus | 9090 | http://localhost:9090 | Metrics collection |
-| MLflow | 5000 | http://localhost:5000 | Experiment tracking |
-| PostgreSQL | 5432 | localhost:5432 | Database |
-| Redis | 6380 | localhost:6380 | Cache & sessions |
-| Kafka | 9092 | localhost:9092 | Event streaming |
+| **Frontend** | 3000 | http://localhost:3000 | React dashboard with glassmorphism UI |
+| **Demo Page** | 3000 | http://localhost:3000/demo.html | Razorpay checkout demo |
+| **Backend API** | 8000 | http://localhost:8000 | FastAPI REST API |
+| **Swagger Docs** | 8000 | http://localhost:8000/docs | Interactive API documentation |
+| **Grafana** | 3001 | http://localhost:3001 | Monitoring dashboard (admin/admin) |
+| **Prometheus** | 9090 | http://localhost:9090 | Metrics collection |
+| **MLflow** | 5000 | http://localhost:5000 | ML experiment tracking |
+| **PostgreSQL** | 5432 | localhost:5432 | Transaction & alert storage |
+| **Redis** | 6380 | localhost:6380 | Cache & session management |
+| **Kafka** | 9092 | localhost:9092 | Event streaming |
 
-## API
+---
+
+## API Reference
 
 All merchant endpoints require `X-API-Key` header. Admin endpoints require the admin API key.
 
-### Register a Merchant
-```bash
-curl -X POST http://localhost:8000/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Acme Corp", "email": "dev@acme.com"}'
-```
-
 ### Score a Transaction
+
 ```bash
 curl -X POST http://localhost:8000/api/v1/transactions \
   -H "Content-Type: application/json" \
@@ -198,6 +264,7 @@ curl -X POST http://localhost:8000/api/v1/transactions \
 ```
 
 ### Response
+
 ```json
 {
   "success": true,
@@ -207,9 +274,9 @@ curl -X POST http://localhost:8000/api/v1/transactions \
     "risk_level": "critical",
     "is_flagged": true,
     "explanations": [
-      {"feature": "V14", "value": -4.21, "importance": 0.18, "description": "V14 = -4.21"},
-      {"feature": "V10", "value": -3.87, "importance": 0.13, "description": "V10 = -3.87"},
-      {"feature": "V17", "value": 3.12, "importance": 0.09, "description": "V17 = 3.12"}
+      {"feature": "V14", "value": -4.21, "importance": 0.18},
+      {"feature": "V10", "value": -3.87, "importance": 0.13},
+      {"feature": "V17", "value": 3.12, "importance": 0.09}
     ],
     "processing_time_ms": 12.5
   }
@@ -236,7 +303,7 @@ curl -X POST http://localhost:8000/api/v1/orders/verify \
   }'
 ```
 
-### Other Endpoints
+### All Endpoints
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
@@ -260,6 +327,8 @@ curl -X POST http://localhost:8000/api/v1/orders/verify \
 | GET | `/api/v1/model/info` | None | Model metadata |
 | GET | `/metrics` | None | Prometheus metrics |
 
+---
+
 ## Project Structure
 
 ```
@@ -269,16 +338,16 @@ razorpay-risk-shield/
 │   │   ├── train.py                # Model training pipeline
 │   │   └── predict.py              # Prediction module
 │   ├── models/
-│   │   ├── fraud_detector_v2.joblib  # Trained model
+│   │   ├── fraud_detector_v2.joblib  # Trained model (RandomForest, 300 trees)
 │   │   ├── fraud_patterns.json     # 50 real fraud patterns
 │   │   ├── metrics_v2.json         # Model metrics
 │   │   └── feature_importances.json
 │   └── data/                       # Training datasets
 ├── backend/
 │   ├── app/
-│   │   ├── main.py                 # FastAPI app, middleware, lifecycle
+│   │   ├── main.py                 # FastAPI app, middleware, Prometheus seed
 │   │   ├── core/
-│   │   │   ├── config.py           # Pydantic Settings
+│   │   │   ├── config.py           # Pydantic Settings (auto-derives secrets)
 │   │   │   ├── database.py         # Async SQLAlchemy engine
 │   │   │   └── auth.py             # JWT + API key auth
 │   │   ├── api/
@@ -287,14 +356,14 @@ razorpay-risk-shield/
 │   │   │   ├── alerts.py           # Alert management
 │   │   │   ├── analytics.py        # Dashboard & analytics
 │   │   │   ├── auth.py             # Register/login/rotate key
-│   │   │   └── webhooks.py         # Razorpay webhook handler
+│   │   │   └── webhooks.py         # Razorpay webhook handler (DB persistence)
 │   │   ├── models/                 # SQLAlchemy ORM models
 │   │   └── services/
-│   │       ├── risk_engine.py      # ML inference pipeline
+│   │       ├── risk_engine.py      # ML inference pipeline (34 features)
 │   │       ├── monitoring.py       # Prometheus metrics + drift detection
 │   │       └── pci.py              # Card masking & Luhn validation
 │   ├── alembic/                    # Database migrations
-│   ├── tests/test_api.py           # Integration tests
+│   ├── tests/test_api.py           # 13 integration tests
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
@@ -310,13 +379,22 @@ razorpay-risk-shield/
 ├── scripts/
 │   ├── demo_seed.py                # Quick demo setup
 │   ├── demo_bulk_seed.py           # Bulk data seeding
-│   └── mlflow_log_model.py         # Log model to MLflow
-├── .github/workflows/ci.yml        # Lint → Test → Build pipeline
+│   ├── mlflow_log_model.py         # Log model to MLflow
+│   ├── capture_demo.py             # Automated screenshot capture
+│   ├── record_pitch.py             # 5-min pitch video recorder
+│   ├── generate_voiceover.py       # AI voiceover generator (Edge TTS)
+│   └── fix_voiceover.py            # Voiceover merge with proper timing
+├── docs/screenshots/               # README screenshots
+├── demo_screenshots/               # Captured demo screenshots
+├── demo_videos/                    # Recorded pitch videos
+├── .github/workflows/ci.yml        # Lint -> Test -> Build pipeline
 ├── docker-compose.yml              # 10-service stack
 ├── Dockerfile.backend              # Multi-stage backend build
 ├── Dockerfile.frontend             # Nginx + Vite build
 └── .env.example                    # Environment template
 ```
+
+---
 
 ## Infrastructure
 
@@ -330,26 +408,36 @@ razorpay-risk-shield/
 | **Grafana** | Real-time monitoring dashboard (9 panels) |
 | **MLflow** | ML experiment tracking and model registry |
 
+---
+
 ## Security
 
-- Card numbers are masked before storage (PCI DSS)
-- JWT tokens with configurable expiry
-- API key rotation support
-- HMAC-SHA256 webhook signature verification
-- HSTS, CORS, rate limiting headers
-- Non-root Docker containers
-- Secrets never committed (`.env` in `.gitignore`)
-- Admin API key auto-derived when not set (dev mode)
+- **PCI DSS Compliant**: Card numbers are masked before storage, never logged
+- **JWT Authentication**: Tokens with configurable expiry
+- **API Key Rotation**: Support for key rotation without downtime
+- **HMAC-SHA256**: Webhook signature verification (Razorpay)
+- **HSTS, CORS, Rate Limiting**: Security headers on all responses
+- **Non-root Docker Containers**: Backend runs as non-root user
+- **Secrets Management**: `.env` in `.gitignore`, auto-derived defaults in dev mode
+- **Defense-Only**: Strictly prevents fraud — never generates, simulates, or enables fraudulent transactions
+
+---
 
 ## Built For
 
 **Razorpay AI Buildathon 2026 — Track 2: AI Risk Manager**
 
-"Stop the merchant losing money to fraud, returns and chargebacks."
+> "Stop the merchant losing money to fraud, returns and chargebacks."
 
-### Defense-Only
+### Why RiskShield Wins
 
-RiskShield is strictly defense-only. It detects and prevents fraud — it does not generate, simulate, or enable fraudulent transactions.
+1. **Defense-Only** — Strictly prevents fraud, never enables it (buildathon requirement)
+2. **Full Razorpay Integration** — Server-side order creation, HMAC-verified webhooks, real-time scoring
+3. **Explainable AI** — Every alert shows which features triggered the flag (not a black box)
+4. **Production-Ready** — Docker Compose, CI/CD, monitoring, alerting, 10 containers
+5. **Real ML Model** — Trained on 284K real transactions, AUC-ROC 0.982
+
+---
 
 ## License
 
