@@ -1,0 +1,56 @@
+FROM python:3.12-slim AS builder
+
+WORKDIR /build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY backend/requirements.txt ./requirements.txt
+
+RUN pip install --no-cache-dir --prefix=/install --timeout 600 \
+    $(grep -v xgboost requirements.txt | tr '\n' ' ')
+
+RUN pip install --no-cache-dir --prefix=/install --timeout 600 \
+    xgboost==2.1.0 --no-deps && \
+    pip install --no-cache-dir --prefix=/install --timeout 600 \
+    threadpoolctl
+
+COPY backend/ ./backend/
+COPY ml/models/ ./ml/models/
+COPY infrastructure/ ./infrastructure/
+
+RUN python -m compileall -q backend/ infrastructure/
+
+FROM python:3.12-slim AS runtime
+
+RUN groupadd --gid 1001 appgroup && \
+    useradd --uid 1001 --gid appgroup --shell /bin/false --create-home appuser
+
+COPY --from=builder /install /usr/local
+
+WORKDIR /app
+
+COPY --from=builder /build/backend/ ./backend/
+COPY --from=builder /build/ml/models/ ./ml_models/
+COPY --from=builder /build/infrastructure/ ./infrastructure/
+
+RUN mkdir -p /app/data && \
+    chown -R appuser:appgroup /app
+
+USER appuser
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app/backend \
+    MODEL_PATH=/app/ml_models/fraud_detector_v2.joblib \
+    DATABASE_URL=sqlite+aiosqlite:///./data/riskshield.db
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=15s \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+
+STOPSIGNAL SIGTERM
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--timeout-graceful-shutdown", "30"]

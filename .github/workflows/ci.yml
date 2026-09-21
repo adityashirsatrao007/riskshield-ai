@@ -1,0 +1,79 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install linting tools
+        run: pip install ruff mypy
+      - name: Ruff lint
+        run: ruff check backend/ --output-format=github
+      - name: Ruff format check
+        run: ruff format --check backend/
+
+  test-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+      - name: Run tests with coverage
+        env:
+          RISKSHIELD_API_KEY: ci-test-key
+          DATABASE_URL: "sqlite+aiosqlite:///./data/riskshield_test.db"
+          MODEL_PATH: "../ml/models/fraud_detector_v2.joblib"
+        run: |
+          cd backend
+          python -m pytest tests/ -v --tb=short --cov=app --cov-report=term-missing --cov-fail-under=60
+      - name: Validate model metrics
+        run: |
+          cd ml
+          python -c "
+          import json
+          with open('models/metrics.json') as f:
+              m = json.load(f)
+          assert m['auc_roc'] >= 0.80, f'AUC too low: {m[\"auc_roc\"]}'
+          assert m['f1_score'] >= 0.50, f'F1 too low: {m[\"f1_score\"]}'
+          print(f'PASS: AUC={m[\"auc_roc\"]}, F1={m[\"f1_score\"]}')
+          "
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install and build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build -f Dockerfile.backend -t riskshield-backend .
+      - name: Build frontend image
+        run: docker build -f Dockerfile.frontend -t riskshield-frontend .
+      - name: Build combined image
+        run: docker build -f Dockerfile -t riskshield .
